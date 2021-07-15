@@ -44,12 +44,33 @@ blocks:
     coordinate: [184, 12]
     rotation: 0
     state: enabled
+- name: blocks_throttle_0
+  id: blocks_throttle
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    ignoretag: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samples_per_second: samp_rate
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [640, 220.0]
+    rotation: 0
+    state: true
 - name: loraGS_lora_preamble_detect_0
   id: loraGS_lora_preamble_detect
   parameters:
     affinity: ''
     alias: ''
     comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
     preamble_len: '8'
     sf: '10'
     threshold: 1e-4
@@ -57,7 +78,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [560, 292.0]
+    coordinate: [408, 204.0]
     rotation: 0
     state: enabled
 - name: qtgui_sink_x_0
@@ -65,7 +86,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    bw: '1500000'
+    bw: 125e3
     comment: ''
     fc: '0'
     fftsize: '1024'
@@ -86,7 +107,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [560, 140.0]
+    coordinate: [872, 188.0]
     rotation: 0
     state: enabled
 - name: uhd_usrp_source_0
@@ -458,13 +479,14 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [176, 204.0]
+    coordinate: [168, 172.0]
     rotation: 0
     state: true
 
 connections:
+- [blocks_throttle_0, '0', qtgui_sink_x_0, '0']
+- [loraGS_lora_preamble_detect_0, '0', blocks_throttle_0, '0']
 - [uhd_usrp_source_0, '0', loraGS_lora_preamble_detect_0, '0']
-- [uhd_usrp_source_0, '0', qtgui_sink_x_0, '0']
 
 metadata:
   file_format: 1

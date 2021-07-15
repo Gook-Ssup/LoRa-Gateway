@@ -25,6 +25,7 @@ from PyQt5 import Qt
 from gnuradio import qtgui
 from gnuradio.filter import firdes
 import sip
+from gnuradio import blocks
 from gnuradio import gr
 import sys
 import signal
@@ -95,7 +96,7 @@ class preamble_detect_test(gr.top_block, Qt.QWidget):
             1024, #fftsize
             firdes.WIN_BLACKMAN_hARRIS, #wintype
             0, #fc
-            1500000, #bw
+            125e3, #bw
             "", #name
             True, #plotfreq
             True, #plotwaterfall
@@ -109,13 +110,15 @@ class preamble_detect_test(gr.top_block, Qt.QWidget):
 
         self.top_layout.addWidget(self._qtgui_sink_x_0_win)
         self.loraGS_lora_preamble_detect_0 = loraGS.lora_preamble_detect(10, 1e-4, 8)
+        self.blocks_throttle_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
 
 
         ##################################################
         # Connections
         ##################################################
+        self.connect((self.blocks_throttle_0, 0), (self.qtgui_sink_x_0, 0))
+        self.connect((self.loraGS_lora_preamble_detect_0, 0), (self.blocks_throttle_0, 0))
         self.connect((self.uhd_usrp_source_0, 0), (self.loraGS_lora_preamble_detect_0, 0))
-        self.connect((self.uhd_usrp_source_0, 0), (self.qtgui_sink_x_0, 0))
 
 
     def closeEvent(self, event):
@@ -128,6 +131,7 @@ class preamble_detect_test(gr.top_block, Qt.QWidget):
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
+        self.blocks_throttle_0.set_sample_rate(self.samp_rate)
         self.uhd_usrp_source_0.set_samp_rate(self.samp_rate)
 
 

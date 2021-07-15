@@ -32,13 +32,20 @@ class lora_preamble_detect(gr.sync_block):
         gr.sync_block.__init__(self,
             name="lora_preamble_detect",
             in_sig=[numpy.complex64],
-            out_sig=None)
+            out_sig=[numpy.complex64])
         self.M = int(2**sf)
         self.preamble_len = preamble_len
         self.thres = threshold
 
         self.demod = css_demod_algo(self.M)
         self.demod_conj = css_demod_algo(self.M, True)
+
+        # for sending
+        self.detection_flag=0
+        self.maximum_index_size = 5
+        self.chunk_index=0
+        self.chunk_size = 2048
+        self.signal_buffer = numpy.zeros(self.chunk_size * self.maximum_index_size, dtype=numpy.complex64)
 
         #Buffers are initially set to -1
         self.conj_buffer = numpy.zeros(2, dtype=numpy.int) - 1
@@ -55,7 +62,7 @@ class lora_preamble_detect(gr.sync_block):
 
         self.set_output_multiple(self.M)
 
-    def detect_preamble(self, in0):
+    def detect_preamble(self):
         #Buffer not full yet
         if self.buffer[0] == -1:
             return False
@@ -66,10 +73,10 @@ class lora_preamble_detect(gr.sync_block):
 
         if(mean_err_sq/max_err_sq < self.thres):
             self.buffer_meta[self.preamble_len-1]['preamble_value'] = numpy.uint16(numpy.round(mean))
-            print("-------------------------detect-------------------------------")
-            print("buffer:", self.buffer)
-            print("buffer_meta:", self.buffer_meta)
-            print("input:", in0)
+            # print("-------------------------detect-------------------------------")
+            # print("buffer:", self.buffer)
+            # print("buffer_meta:", self.buffer_meta)
+            # print("input:", in0, len(in0))
             return True
         else:
             pass
@@ -79,10 +86,19 @@ class lora_preamble_detect(gr.sync_block):
 
     def work(self, input_items, output_items):
         in0 = input_items[0]
-        # out = output_items[0]
+        out0 = output_items[0]
+
+        # if(len(in0) == len(out0)):
+        #     print("Same")
+        # else:
+        #     print("Not Same")
 
         
         n_syms = len(in0)//self.M
+
+        #print("in0 len:", len(in0))
+        # print("n_syms:", n_syms)
+
 
         for i in range(0, n_syms):
             #Demod and shift buffer
@@ -108,6 +124,25 @@ class lora_preamble_detect(gr.sync_block):
                 self.conj_complex_buffer[-1] = complex_sym[0]
 
             #Check for preamble
-            self.detect_preamble(in0)
-        return len(in0)
+            
+            input_len = len(in0)
+            self.signal_buffer=numpy.roll(self.signal_buffer, -input_len)
+            self.signal_buffer[-input_len:] = in0
+            if(self.detect_preamble()):
+                print("detect preamble")
+                self.detection_flag=1
+
+            if(self.detection_flag):
+                self.chunk_index+=1
+                #print(self.chunk_index)
+                out0[:] = self.signal_buffer[:input_len]
+                print(out0)
+                if(self.chunk_index>=self.maximum_index_size):
+                    self.chunk_index=0
+                    self.detection_flag=0
+            else:
+                out0[:] = 0
+        
+        #return len(output_items[0])
+        return len(out0[:])
 
