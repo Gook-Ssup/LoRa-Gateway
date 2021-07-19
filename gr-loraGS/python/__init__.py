@@ -33,4 +33,5 @@ except ImportError:
 
 # import any pure python here
 from .lora_preamble_detect import lora_preamble_detect
+from .preamble_detect_test import preamble_detect_test
 #

@@ -44,25 +44,6 @@ blocks:
     coordinate: [184, 12]
     rotation: 0
     state: enabled
-- name: blocks_throttle_0
-  id: blocks_throttle
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    ignoretag: 'True'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    samples_per_second: samp_rate
-    type: complex
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [640, 220.0]
-    rotation: 0
-    state: true
 - name: loraGS_lora_preamble_detect_0
   id: loraGS_lora_preamble_detect
   parameters:
@@ -78,9 +59,27 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [408, 204.0]
+    coordinate: [360, 180.0]
     rotation: 0
     state: enabled
+- name: loraGS_preamble_detect_test_0
+  id: loraGS_preamble_detect_test
+  parameters:
+    SF: '10'
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    preamble_len: '8'
+    thres: 1e-4
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [352, 404.0]
+    rotation: 0
+    state: true
 - name: qtgui_sink_x_0
   id: qtgui_sink_x
   parameters:
@@ -107,7 +106,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [872, 188.0]
+    coordinate: [640, 388.0]
     rotation: 0
     state: enabled
 - name: uhd_usrp_source_0
@@ -479,14 +478,41 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [168, 172.0]
+    coordinate: [72, 148.0]
     rotation: 0
     state: true
+- name: virtual_sink_0
+  id: virtual_sink
+  parameters:
+    alias: ''
+    comment: ''
+    stream_id: preamble_signal
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [632, 196.0]
+    rotation: 0
+    state: true
+- name: virtual_source_0
+  id: virtual_source
+  parameters:
+    alias: ''
+    comment: ''
+    stream_id: preamble_signal
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [80, 420.0]
+    rotation: 0
+    state: enabled
 
 connections:
-- [blocks_throttle_0, '0', qtgui_sink_x_0, '0']
-- [loraGS_lora_preamble_detect_0, '0', blocks_throttle_0, '0']
+- [loraGS_lora_preamble_detect_0, '0', virtual_sink_0, '0']
+- [loraGS_preamble_detect_test_0, '0', qtgui_sink_x_0, '0']
 - [uhd_usrp_source_0, '0', loraGS_lora_preamble_detect_0, '0']
+- [virtual_source_0, '0', loraGS_preamble_detect_test_0, '0']
 
 metadata:
   file_format: 1

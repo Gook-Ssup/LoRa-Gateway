@@ -41,9 +41,9 @@ class lora_preamble_detect(gr.sync_block):
         self.demod_conj = css_demod_algo(self.M, True)
 
         # for sending
-        self.sending_mode = 0
-        self.maximum_index_size = 10
-        self.chunk_index = 0
+        self.detection_flag=0
+        self.maximum_index_size = 5
+        self.chunk_index=0
         self.chunk_size = 2048
         self.signal_buffer = numpy.zeros(self.chunk_size * self.maximum_index_size, dtype=numpy.complex64)
 
@@ -86,7 +86,14 @@ class lora_preamble_detect(gr.sync_block):
 
     def work(self, input_items, output_items):
         in0 = input_items[0]
+        out0 = output_items[0]
 
+        # if(len(in0) == len(out0)):
+        #     print("Same")
+        # else:
+        #     print("Not Same")
+
+        
         n_syms = len(in0)//self.M
 
         #print("in0 len:", len(in0))
@@ -122,17 +129,20 @@ class lora_preamble_detect(gr.sync_block):
             self.signal_buffer=numpy.roll(self.signal_buffer, -input_len)
             self.signal_buffer[-input_len:] = in0
             if(self.detect_preamble()):
-                print("Detect Preamble(Origin)")
-                self.sending_mode = True
+                print("detect preamble")
+                self.detection_flag=1
 
-            if(self.sending_mode):
-                self.chunk_index += 1
-                output_items[0][:] = self.signal_buffer[:input_len]
-                if(self.chunk_index >= self.maximum_index_size):
-                    self.chunk_index = 0
-                    self.sending_mode = False
+            if(self.detection_flag):
+                self.chunk_index+=1
+                #print(self.chunk_index)
+                out0[:] = self.signal_buffer[:input_len]
+                print(out0)
+                if(self.chunk_index>=self.maximum_index_size):
+                    self.chunk_index=0
+                    self.detection_flag=0
             else:
-                output_items[0][:] = numpy.random.normal(size=input_len)
+                out0[:] = 0
         
-        return len(output_items[0])
+        #return len(output_items[0])
+        return len(out0[:])
 
