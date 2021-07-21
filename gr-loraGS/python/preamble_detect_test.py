@@ -70,7 +70,12 @@ class preamble_detect_test(gr.sync_block):
 
         if(mean_err_sq/max_err_sq < self.thres):
             self.buffer_meta[self.preamble_len-1]['preamble_value'] = numpy.uint16(numpy.round(mean))
-            print("Detect Preamble (Received)")
+            print("--------------Detect Preamble (Received)----------------")
+            print("self.buffer", self.buffer)
+            print("self.complex_buffer", self.complex_buffer)
+            print("self.buffer_meta", self.buffer_meta)
+            print("self.conj_buffer", self.conj_buffer)
+            print("self.conj_complex_buffer", self.conj_complex_buffer)
             return True
 
         return False

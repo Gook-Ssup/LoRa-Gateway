@@ -20,5 +20,6 @@
 
 install(FILES
     loraGS_lora_preamble_detect.block.yml
-    loraGS_preamble_detect_test.block.yml DESTINATION share/gnuradio/grc/blocks
+    loraGS_preamble_detect_test.block.yml
+    loraGS_dechirp_source.block.yml DESTINATION share/gnuradio/grc/blocks
 )
