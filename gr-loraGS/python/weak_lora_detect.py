@@ -60,7 +60,7 @@ class weak_lora_detect(gr.sync_block):
         signal_size = len(input_items[0])
 
         ## Step 1
-        numpy.roll(self.signal_buffer, -signal_size)
+        self.signal_buffer = numpy.roll(self.signal_buffer, -signal_size)
         self.signal_buffer[-signal_size:] = input_items[0]
         
         ## Step 2
@@ -70,23 +70,26 @@ class weak_lora_detect(gr.sync_block):
         # else
         #dechirped_signals = self.signal_buffer[-self.preamble_len * self.M:] * self.dechirp_8
 
-        step_size=64
+        step_size = 1024
         ## Step 3
         n_syms = signal_size//step_size
+        # print("signal_size : ", signal_size)
         for i in range(0, n_syms):
-            # print(self.energe_buffer)
             dechirped_signals = self.signal_buffer[(i*step_size):(i*step_size)+(8*self.M)] * self.dechirp_8
-            dechirped_signals_fft = numpy.fft.fft(dechirped_signals)
-            numpy.roll(self.energe_buffer, -1)
+            dechirped_signals_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_signals))
+            self.energe_buffer = numpy.roll(self.energe_buffer, -1)
             self.energe_buffer[-1] = numpy.max(numpy.abs(dechirped_signals_fft))
+            #print(self.energe_buffer)
             
             ## Step 4
             if(self.energe_buffer[-1] > self.energe_buffer[-2]):
                 self.increase_count += 1
-                print(self.energe_buffer)
-            elif(self.increase_count >= 5):
+                #print(self.energe_buffer)
+            else:
+                if(self.increase_count >= 3):
+                    print("detect lora preamble (with charm)")
+                    print("energe_buffer", self.energe_buffer)
                 self.increase_count = 0
-                print("detect lora preamble (with charm)")
                 
 
                 
