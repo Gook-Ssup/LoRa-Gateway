@@ -87,10 +87,10 @@ class charm_test(gr.top_block, Qt.QWidget):
             ),
         )
         self.uhd_usrp_source_0.set_center_freq(915e6, 0)
-        self.uhd_usrp_source_0.set_gain(0, 0)
+        self.uhd_usrp_source_0.set_gain(30, 0)
         self.uhd_usrp_source_0.set_antenna('TX/RX', 0)
         self.uhd_usrp_source_0.set_samp_rate(samp_rate)
-        self.uhd_usrp_source_0.set_time_unknown_pps(uhd.time_spec())
+        # No synchronization enforced.
         self.qtgui_time_sink_x_0_0 = qtgui.time_sink_c(
             1024, #size
             samp_rate, #samp_rate

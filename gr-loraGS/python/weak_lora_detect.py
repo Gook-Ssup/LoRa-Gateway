@@ -38,10 +38,10 @@ class weak_lora_detect(gr.sync_block):
         self.thres = threshold
 
         # for charm
-        self.max_chunk_count = self.preamble_len + 2
+        self.max_chunk_count = 30
         self.signal_buffer = numpy.zeros(self.M * self.max_chunk_count, dtype=numpy.complex64)
         self.signal_index = 0
-        self.energe_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.int) - 1
+        self.energe_buffer = numpy.zeros(20, dtype=numpy.int) - 1
         self.increase_count = 0
 
         #Buffers are initially set to -1
@@ -70,23 +70,25 @@ class weak_lora_detect(gr.sync_block):
         # else
         #dechirped_signals = self.signal_buffer[-self.preamble_len * self.M:] * self.dechirp_8
 
-        step_size = 1024
         ## Step 3
-        n_syms = signal_size//step_size
+        n_syms = signal_size//self.M
+        check_index = self.preamble_len - 1
         # print("signal_size : ", signal_size)
         for i in range(0, n_syms):
-            dechirped_signals = self.signal_buffer[(i*step_size):(i*step_size)+(8*self.M)] * self.dechirp_8
+            dechirped_signals = self.signal_buffer[(self.max_chunk_count - n_syms + i - 7)*self.M:(self.max_chunk_count - n_syms + i + 1)*self.M] * self.dechirp_8
             dechirped_signals_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_signals))
             self.energe_buffer = numpy.roll(self.energe_buffer, -1)
             self.energe_buffer[-1] = numpy.max(numpy.abs(dechirped_signals_fft))
             #print(self.energe_buffer)
             
             ## Step 4
-            if(self.energe_buffer[-1] > self.energe_buffer[-2]):
+            if(self.energe_buffer[check_index] > self.energe_buffer[check_index - 1]):
                 self.increase_count += 1
                 #print(self.energe_buffer)
+            elif(self.energe_buffer[check_index] == self.energe_buffer[check_index - 1]):
+                pass
             else:
-                if(self.increase_count >= 3):
+                if(self.increase_count >= 4):
                     print("detect lora preamble (with charm)")
                     print("energe_buffer", self.energe_buffer)
                 self.increase_count = 0
