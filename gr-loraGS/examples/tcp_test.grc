@@ -1,6 +1,6 @@
 options:
   parameters:
-    author: gnuradio-inc
+    author: ''
     category: '[GRC Hier Blocks]'
     cmake_opt: ''
     comment: ''
@@ -10,7 +10,7 @@ options:
     gen_linking: dynamic
     generate_options: qt_gui
     hier_block_src_path: '.:'
-    id: charm_test
+    id: tcp_test
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -60,7 +60,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [536, 328.0]
+    coordinate: [768, 236.0]
     rotation: 0
     state: enabled
 - name: loraGS_lora_preamble_detect_0
@@ -78,9 +78,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [352, 60.0]
+    coordinate: [504, 220.0]
     rotation: 0
-    state: disabled
+    state: enabled
 - name: loraGS_preamble_detect_test_0
   id: loraGS_preamble_detect_test
   parameters:
@@ -96,28 +96,10 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [672, 236.0]
+    coordinate: [464, 380.0]
     rotation: 0
     state: enabled
-- name: loraGS_weak_lora_detect_0
-  id: loraGS_weak_lora_detect
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    preamble_len: '8'
-    sf: '10'
-    threshold: 1e-4
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [360, 260.0]
-    rotation: 0
-    state: enabled
-- name: qtgui_sink_x_0_0
+- name: qtgui_sink_x_0
   id: qtgui_sink_x
   parameters:
     affinity: ''
@@ -129,7 +111,7 @@ blocks:
     gui_hint: ''
     maxoutbuf: '0'
     minoutbuf: '0'
-    name: charm detect
+    name: '""'
     plotconst: 'True'
     plotfreq: 'True'
     plottime: 'True'
@@ -143,38 +125,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [912, 220.0]
+    coordinate: [768, 364.0]
     rotation: 0
-    state: enabled
-- name: qtgui_sink_x_0_0_0
-  id: qtgui_sink_x
-  parameters:
-    affinity: ''
-    alias: ''
-    bw: samp_rate
-    comment: ''
-    fc: '0'
-    fftsize: '1024'
-    gui_hint: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    name: detect
-    plotconst: 'True'
-    plotfreq: 'True'
-    plottime: 'True'
-    plotwaterfall: 'True'
-    rate: '10'
-    showports: 'False'
-    showrf: 'False'
-    type: complex
-    wintype: firdes.WIN_BLACKMAN_hARRIS
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [656, 76.0]
-    rotation: 0
-    state: disabled
+    state: true
 - name: uhd_usrp_source_0
   id: uhd_usrp_source
   parameters:
@@ -530,7 +483,7 @@ blocks:
     start_time: '-1.0'
     stream_args: ''
     stream_chans: '[]'
-    sync: sync
+    sync: none
     time_source0: ''
     time_source1: ''
     time_source2: ''
@@ -544,17 +497,56 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [96, 108.0]
+    coordinate: [168, 188.0]
     rotation: 0
     state: true
+- name: zeromq_pull_source_0
+  id: zeromq_pull_source
+  parameters:
+    address: tcp://127.0.0.1:5255
+    affinity: ''
+    alias: ''
+    comment: ''
+    hwm: '-1'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    pass_tags: 'False'
+    timeout: '100'
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [184, 380.0]
+    rotation: 0
+    state: enabled
+- name: zeromq_push_sink_0
+  id: zeromq_push_sink
+  parameters:
+    address: tcp://127.0.0.1:5255
+    affinity: ''
+    alias: ''
+    comment: ''
+    hwm: '-1'
+    pass_tags: 'False'
+    timeout: '100'
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1008, 220.0]
+    rotation: 0
+    state: enabled
 
 connections:
-- [blocks_throttle_0, '0', loraGS_preamble_detect_test_0, '0']
-- [loraGS_lora_preamble_detect_0, '0', qtgui_sink_x_0_0_0, '0']
-- [loraGS_preamble_detect_test_0, '0', qtgui_sink_x_0_0, '0']
-- [loraGS_weak_lora_detect_0, '0', blocks_throttle_0, '0']
+- [blocks_throttle_0, '0', zeromq_push_sink_0, '0']
+- [loraGS_lora_preamble_detect_0, '0', blocks_throttle_0, '0']
+- [loraGS_preamble_detect_test_0, '0', qtgui_sink_x_0, '0']
 - [uhd_usrp_source_0, '0', loraGS_lora_preamble_detect_0, '0']
-- [uhd_usrp_source_0, '0', loraGS_weak_lora_detect_0, '0']
+- [zeromq_pull_source_0, '0', loraGS_preamble_detect_test_0, '0']
 
 metadata:
   file_format: 1

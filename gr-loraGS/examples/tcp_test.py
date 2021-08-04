@@ -6,7 +6,6 @@
 #
 # GNU Radio Python Flow Graph
 # Title: Not titled yet
-# Author: gnuradio-inc
 # GNU Radio version: 3.8.3.1
 
 from distutils.version import StrictVersion
@@ -34,11 +33,12 @@ from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio import uhd
 import time
+from gnuradio import zeromq
 import loraGS
 
 from gnuradio import qtgui
 
-class charm_test(gr.top_block, Qt.QWidget):
+class tcp_test(gr.top_block, Qt.QWidget):
 
     def __init__(self):
         gr.top_block.__init__(self, "Not titled yet")
@@ -61,7 +61,7 @@ class charm_test(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("GNU Radio", "charm_test")
+        self.settings = Qt.QSettings("GNU Radio", "tcp_test")
 
         try:
             if StrictVersion(Qt.qVersion()) < StrictVersion("5.0.0"):
@@ -79,6 +79,8 @@ class charm_test(gr.top_block, Qt.QWidget):
         ##################################################
         # Blocks
         ##################################################
+        self.zeromq_push_sink_0 = zeromq.push_sink(gr.sizeof_gr_complex, 1, 'tcp://127.0.0.1:5255', 100, False, -1)
+        self.zeromq_pull_source_0 = zeromq.pull_source(gr.sizeof_gr_complex, 1, 'tcp://127.0.0.1:5255', 100, False, -1)
         self.uhd_usrp_source_0 = uhd.usrp_source(
             ",".join(("", "")),
             uhd.stream_args(
@@ -91,40 +93,41 @@ class charm_test(gr.top_block, Qt.QWidget):
         self.uhd_usrp_source_0.set_gain(30, 0)
         self.uhd_usrp_source_0.set_antenna('TX/RX', 0)
         self.uhd_usrp_source_0.set_samp_rate(samp_rate)
-        self.uhd_usrp_source_0.set_time_unknown_pps(uhd.time_spec())
-        self.qtgui_sink_x_0_0 = qtgui.sink_c(
+        # No synchronization enforced.
+        self.qtgui_sink_x_0 = qtgui.sink_c(
             1024, #fftsize
             firdes.WIN_BLACKMAN_hARRIS, #wintype
             0, #fc
             samp_rate, #bw
-            'charm detect', #name
+            "", #name
             True, #plotfreq
             True, #plotwaterfall
             True, #plottime
             True #plotconst
         )
-        self.qtgui_sink_x_0_0.set_update_time(1.0/10)
-        self._qtgui_sink_x_0_0_win = sip.wrapinstance(self.qtgui_sink_x_0_0.pyqwidget(), Qt.QWidget)
+        self.qtgui_sink_x_0.set_update_time(1.0/10)
+        self._qtgui_sink_x_0_win = sip.wrapinstance(self.qtgui_sink_x_0.pyqwidget(), Qt.QWidget)
 
-        self.qtgui_sink_x_0_0.enable_rf_freq(False)
+        self.qtgui_sink_x_0.enable_rf_freq(False)
 
-        self.top_layout.addWidget(self._qtgui_sink_x_0_0_win)
-        self.loraGS_weak_lora_detect_0 = loraGS.weak_lora_detect(10, 1e-4, 8)
+        self.top_layout.addWidget(self._qtgui_sink_x_0_win)
         self.loraGS_preamble_detect_test_0 = loraGS.preamble_detect_test(10, 8, 1e-4)
+        self.loraGS_lora_preamble_detect_0 = loraGS.lora_preamble_detect(10, 1e-4, 8)
         self.blocks_throttle_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
 
 
         ##################################################
         # Connections
         ##################################################
-        self.connect((self.blocks_throttle_0, 0), (self.loraGS_preamble_detect_test_0, 0))
-        self.connect((self.loraGS_preamble_detect_test_0, 0), (self.qtgui_sink_x_0_0, 0))
-        self.connect((self.loraGS_weak_lora_detect_0, 0), (self.blocks_throttle_0, 0))
-        self.connect((self.uhd_usrp_source_0, 0), (self.loraGS_weak_lora_detect_0, 0))
+        self.connect((self.blocks_throttle_0, 0), (self.zeromq_push_sink_0, 0))
+        self.connect((self.loraGS_lora_preamble_detect_0, 0), (self.blocks_throttle_0, 0))
+        self.connect((self.loraGS_preamble_detect_test_0, 0), (self.qtgui_sink_x_0, 0))
+        self.connect((self.uhd_usrp_source_0, 0), (self.loraGS_lora_preamble_detect_0, 0))
+        self.connect((self.zeromq_pull_source_0, 0), (self.loraGS_preamble_detect_test_0, 0))
 
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("GNU Radio", "charm_test")
+        self.settings = Qt.QSettings("GNU Radio", "tcp_test")
         self.settings.setValue("geometry", self.saveGeometry())
         event.accept()
 
@@ -134,14 +137,14 @@ class charm_test(gr.top_block, Qt.QWidget):
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.blocks_throttle_0.set_sample_rate(self.samp_rate)
-        self.qtgui_sink_x_0_0.set_frequency_range(0, self.samp_rate)
+        self.qtgui_sink_x_0.set_frequency_range(0, self.samp_rate)
         self.uhd_usrp_source_0.set_samp_rate(self.samp_rate)
 
 
 
 
 
-def main(top_block_cls=charm_test, options=None):
+def main(top_block_cls=tcp_test, options=None):
 
     if StrictVersion("4.5.0") <= StrictVersion(Qt.qVersion()) < StrictVersion("5.0.0"):
         style = gr.prefs().get_string('qtgui', 'style', 'raster')

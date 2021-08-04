@@ -42,10 +42,10 @@ class lora_preamble_detect(gr.sync_block):
 
         # for sending
         self.sending_mode = 0
-        self.maximum_index_size = 10
-        self.chunk_index = 0
-        self.chunk_size = 2048
-        self.signal_buffer = numpy.zeros(self.chunk_size * self.maximum_index_size, dtype=numpy.complex64)
+        self.sending_size = self.M * 20
+        # self.chunk_index = 0
+        # self.chunk_size = 2048
+        self.signal_buffer = numpy.zeros(self.sending_size, dtype=numpy.complex64)
 
         #Buffers are initially set to -1
         self.conj_buffer = numpy.zeros(2, dtype=numpy.int) - 1
@@ -60,7 +60,7 @@ class lora_preamble_detect(gr.sync_block):
             self.complex_buffer = numpy.zeros(5, dtype=numpy.complex64)
             self.buffer_meta = [dict() for i in range(0, 5)]
 
-        self.set_output_multiple(self.M)
+        self.set_output_multiple(self.sending_size)
 
     def detect_preamble(self):
         #Buffer not full yet
@@ -92,7 +92,6 @@ class lora_preamble_detect(gr.sync_block):
         #print("in0 len:", len(in0))
         # print("n_syms:", n_syms)
 
-
         for i in range(0, n_syms):
             #Demod and shift buffer
             self.buffer = numpy.roll(self.buffer, -1)
@@ -117,7 +116,6 @@ class lora_preamble_detect(gr.sync_block):
                 self.conj_complex_buffer[-1] = complex_sym[0]
 
             #Check for preamble
-            
             input_len = len(in0)
             self.signal_buffer=numpy.roll(self.signal_buffer, -input_len)
             self.signal_buffer[-input_len:] = in0
@@ -126,13 +124,9 @@ class lora_preamble_detect(gr.sync_block):
                 self.sending_mode = True
 
             if(self.sending_mode):
-                self.chunk_index += 1
-                output_items[0][:] = self.signal_buffer[:input_len]
-                if(self.chunk_index >= self.maximum_index_size):
-                    self.chunk_index = 0
-                    self.sending_mode = False
+                output_items[0][:] = self.signal_buffer[:]
             else:
-                output_items[0][:] = numpy.random.normal(size=input_len)
+                output_items[0][:] = numpy.random.normal(size=self.sending_size)
         
         return len(output_items[0])
 

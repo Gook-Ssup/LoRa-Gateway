@@ -22,7 +22,6 @@
 
 import numpy
 from gnuradio import gr
-from lora2 import css_demod_algo
 
 class weak_lora_detect(gr.sync_block):
     """
@@ -55,58 +54,18 @@ class weak_lora_detect(gr.sync_block):
         self.dechirp_8 = numpy.tile(self.dechirp, self.preamble_len)
 
         # for sending
-        self.sending_mode = False
-        self.sending_size = 20 * self.M
-
-        # for checking
-        self.demod = css_demod_algo(self.M)
-        self.demod_conj = css_demod_algo(self.M, True)
-
-        if preamble_len > 2:
-            self.buffer = numpy.zeros(preamble_len + 2, dtype=numpy.int) - 1
-            self.complex_buffer = numpy.zeros(preamble_len + 2, dtype=numpy.complex64)
-            self.buffer_meta = [dict() for i in range(0, preamble_len + 2)]
-        else:
-            self.buffer = numpy.zeros(5, dtype=numpy.int) - 1
-            self.complex_buffer = numpy.zeros(5, dtype=numpy.complex64)
-            self.buffer_meta = [dict() for i in range(0, 5)]
-
+        self.sending_size = self.M * 20
+        self.sending_index = 0
         self.set_output_multiple(self.sending_size)
 
-    def print_buffers(self):
-        for k in range(30):
-            print("%04d" %self.bin_buffer[k], end=" ")
-        print("")
-        for k in range(30):
-            print("%04d" %self.energe_buffer[k], end=" ")
-        print("")        
-
     def find_maximum(self):
-        self.print_buffers()
         max_index = 0
         for k in range(30):
             if(self.energe_buffer[k] > self.energe_buffer[max_index]):
                 max_index = k
+            print("%d\t\t%d\t\t%.2f" %(k, self.bin_buffer[k], self.energe_buffer[k]))
         return (self.bin_buffer[max_index], self.energe_buffer[max_index])
-
-    def detect_preamble(self):
-        #Buffer not full yet
-        if self.buffer[0] == -1:
-            return False
-
-        mean = numpy.mean(self.buffer[-(self.preamble_len+2):-2])
-        mean_err_sq = numpy.sum(numpy.abs(self.buffer[-(self.preamble_len+2):-2] - mean)**2)
-        max_err_sq = self.M**2
-
-        if(mean_err_sq/max_err_sq < self.thres):
-            self.buffer_meta[self.preamble_len-1]['preamble_value'] = numpy.uint16(numpy.round(mean))
-            # print("-------------------------detect-------------------------------")
-            # print("buffer:", self.buffer)
-            # print("buffer_meta:", self.buffer_meta)
-            # print("input:", in0, len(in0))
-            return True
-        else:
-            pass
+        
 
     def work(self, input_items, output_items):
         signal_size = len(input_items[0])
@@ -124,6 +83,7 @@ class weak_lora_detect(gr.sync_block):
         ## Step 3
         n_syms = signal_size//self.M
         check_index = 15
+        
  
         # for i in range(0, n_syms):
         for i in range(n_syms, 0, -1):
@@ -138,53 +98,18 @@ class weak_lora_detect(gr.sync_block):
             self.bin_buffer[-1] = numpy.argmax(numpy.abs(dechirped_signals_fft))
             
             ## Step 4
-            if(self.energe_buffer[-1] > self.energe_buffer[-2]):
+            check_index = 15
+            if(self.energe_buffer[check_index] > self.energe_buffer[check_index-1] and self.bin_buffer[check_index-1] == self.bin_buffer[check_index-2]):
                 self.increase_count += 1
-            elif(self.energe_buffer[-1] == self.energe_buffer[-2]):
-                pass
             else:
-                if(self.increase_count >= 6):
+                if(self.increase_count >= 4):
                     print("detect lora preamble (with charm)")
                     max_bin, energe = self.find_maximum()
                     # print("max bin:", max_bin)
                     # print("max mag:", energe)
-                    self.sending_mode = True
+                    # send
+                    output_items[0][:] = self.signal_buffer[(check_index-8)*self.M:(check_index-8)*self.M+self.sending_size]
                 self.increase_count = 0
+                output_items[0][:] = numpy.random.normal(size=self.sending_size)
 
-        # Origin
-        for i in range(0, n_syms):
-            self.buffer = numpy.roll(self.buffer, -1)
-            self.complex_buffer = numpy.roll(self.complex_buffer, -1)
-            self.buffer_meta.pop(0)
-            self.buffer_meta.append(dict())
-
-            sig = input_items[0][i*self.M:(i+1)*self.M]
-            (hard_sym, complex_sym) = self.demod.complex_demodulate(sig)
-            self.buffer[-1] = hard_sym[0]
-            self.complex_buffer[-1] = complex_sym[0]
-
-            #Conjugate demod and shift conjugate buffer, if needed
-            #AABBC or ABBCC
-            #   ^       ^
-            if ('sync_value' in self.buffer_meta[-2]) or ('sync_value' in self.buffer_meta[-3]):
-                self.conj_buffer = numpy.roll(self.conj_buffer, -1)
-                self.conj_complex_buffer = numpy.roll(self.conj_complex_buffer, -1)
-
-                (hard_sym, complex_sym) = self.demod_conj.complex_demodulate(sig)
-                self.conj_buffer[-1] = hard_sym[0]
-                self.conj_complex_buffer[-1] = complex_sym[0]
-
-            #Check for preamble
-            if(self.detect_preamble()):
-                print("Detect Preamble(Origin)")
-                self.print_buffers()
-                print(self.buffer)
-
-
-        # send
-        if(self.sending_mode):
-            output_items[0][:] = self.signal_buffer[self.M * 0 : self.M * 0 + self.sending_size]
-        else:
-            output_items[0][:] = numpy.random.normal(size=self.sending_size)
-        self.sending_mode = False
         return len(output_items[0])
