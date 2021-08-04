@@ -60,7 +60,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [536, 328.0]
+    coordinate: [512, 316.0]
     rotation: 0
     state: enabled
 - name: loraGS_lora_preamble_detect_0
@@ -114,7 +114,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [360, 260.0]
+    coordinate: [352, 196.0]
     rotation: 0
     state: enabled
 - name: qtgui_sink_x_0_0

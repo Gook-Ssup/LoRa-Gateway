@@ -45,9 +45,7 @@ class weak_lora_detect(gr.sync_block):
         self.energe_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.float) - 1
         self.bin_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.int) - 1
         self.increase_count = 0
-
-        #Buffers are initially set to -1
-        self.buffer_meta = [dict() for i in range(0, self.max_chunk_count)]
+        self.decrease_count = 0
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
@@ -56,7 +54,7 @@ class weak_lora_detect(gr.sync_block):
 
         # for sending
         self.sending_mode = False
-        self.sending_size = 20 * self.M
+        self.sending_size = 15 * self.M
 
         # for checking
         self.demod = css_demod_algo(self.M)
@@ -125,11 +123,10 @@ class weak_lora_detect(gr.sync_block):
         n_syms = signal_size//self.M
         check_index = 15
  
-        # for i in range(0, n_syms):
-        for i in range(n_syms, 0, -1):
-            # dechirped_signals = self.signal_buffer[(self.max_chunk_count - n_syms + i - 7)*self.M:(self.max_chunk_count - n_syms + i + 1)*self.M] * self.dechirp_8
-            # dechirped_signals = input_items[0][i*self.M : (i+8)*self.M] * self.dechirp_8
-            dechirped_signals = numpy.roll(self.signal_buffer, (i-1)*self.M)[-8*self.M:]*self.dechirp_8    
+        for i in range(0, n_syms):
+        # for i in range(n_syms, 0, -1):
+            # dechirped_signals = numpy.roll(self.signal_buffer, (i-1)*self.M)[-8*self.M:]*self.dechirp_8
+            dechirped_signals = numpy.roll(self.signal_buffer, (n_syms - i - 1)*self.M)[-8*self.M:]*self.dechirp_8
             dechirped_signals_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_signals))
 
             self.energe_buffer = numpy.roll(self.energe_buffer, -1)
@@ -140,19 +137,24 @@ class weak_lora_detect(gr.sync_block):
             ## Step 4
             if(self.energe_buffer[-1] > self.energe_buffer[-2]):
                 self.increase_count += 1
-            elif(self.energe_buffer[-1] == self.energe_buffer[-2]):
-                pass
+                self.decrease_count = 0
             else:
                 if(self.increase_count >= 6):
-                    print("detect lora preamble (with charm)")
-                    max_bin, energe = self.find_maximum()
-                    # print("max bin:", max_bin)
-                    # print("max mag:", energe)
-                    self.sending_mode = True
-                self.increase_count = 0
+                    self.decrease_count += 1
+                    if(self.decrease_count >= 2):
+                        print("detect lora preamble (with charm)")
+                        max_bin, energe = self.find_maximum()
+                        # print("max bin:", max_bin)
+                        # print("max mag:", energe)
+                        self.sending_mode = True
 
-        # Origin
-        for i in range(0, n_syms):
+                        self.increase_count = 0
+                        self.decrease_count = 0
+                else:
+                    self.increase_count = 0
+                    self.decrease_count = 0
+
+            # --------------------------- Checking Start ---------------------------
             self.buffer = numpy.roll(self.buffer, -1)
             self.complex_buffer = numpy.roll(self.complex_buffer, -1)
             self.buffer_meta.pop(0)
@@ -179,11 +181,11 @@ class weak_lora_detect(gr.sync_block):
                 print("Detect Preamble(Origin)")
                 self.print_buffers()
                 print(self.buffer)
-
+            # --------------------------- Checking End ---------------------------
 
         # send
         if(self.sending_mode):
-            output_items[0][:] = self.signal_buffer[self.M * 0 : self.M * 0 + self.sending_size]
+            output_items[0][:] = self.signal_buffer[-self.M * 15 :]
         else:
             output_items[0][:] = numpy.random.normal(size=self.sending_size)
         self.sending_mode = False
