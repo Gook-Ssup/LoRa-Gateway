@@ -22,6 +22,7 @@
 
 import numpy
 from gnuradio import gr
+import matplotlib.pyplot as plt
 
 class weak_index(gr.sync_block):
     """
@@ -94,7 +95,7 @@ class weak_index(gr.sync_block):
         plt.plot(buffer)
         #plt.show()
         #plt.savefig('./image/test%d.png' %(self.image_count)/test%d.png' %(self.image_count))
-        plt.savefig("/home/yun/gr-weak_detect/python/image/image%d.png" %(self.image_count))
+        plt.savefig("/home/yun/LoRa-Gateway/gr-loraGS/python/image/image%d.png" %(self.image_count))
         plt.clf()
         self.image_count += 1
         

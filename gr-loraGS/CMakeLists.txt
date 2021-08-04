@@ -153,7 +153,7 @@ add_custom_target(uninstall
 # Add subdirectories
 ########################################################################
 add_subdirectory(include/loraGS)
-add_subdirectory(lib)
+#add_subdirectory(lib)
 add_subdirectory(apps)
 add_subdirectory(docs)
 add_subdirectory(swig)

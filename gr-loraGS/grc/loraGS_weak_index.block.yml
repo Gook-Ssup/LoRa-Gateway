@@ -12,8 +12,8 @@ templates:
 #     * label (label shown in the GUI)
 #     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 parameters:
--   id: SF
-    label: SF
+-   id: sf
+    label: sf
     dtype: int
 -   id: threshold
     label: Threshold
