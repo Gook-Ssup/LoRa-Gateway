@@ -33,7 +33,8 @@ GR_PYTHON_INSTALL(
     FILES
     __init__.py
     lora_preamble_detect.py
-    preamble_detect_test.py DESTINATION ${GR_PYTHON_DIR}/loraGS
+    preamble_detect_test.py
+    weak_index.py DESTINATION ${GR_PYTHON_DIR}/loraGS
 )
 
 ########################################################################
