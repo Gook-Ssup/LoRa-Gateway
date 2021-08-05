@@ -23,6 +23,7 @@
 import numpy
 from gnuradio import gr
 from lora2 import css_demod_algo
+import matplotlib.pyplot as plt
 
 class weak_lora_detect(gr.sync_block):
     """
@@ -44,8 +45,10 @@ class weak_lora_detect(gr.sync_block):
         self.signal_index = 0
         self.energe_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.float) - 1
         self.bin_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.int) - 1
+        self.max_mag = 0
         self.increase_count = 0
         self.decrease_count = 0
+        self.enough_increase = False
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
@@ -56,7 +59,10 @@ class weak_lora_detect(gr.sync_block):
         self.sending_mode = False
         self.sending_size = 15 * self.M
 
-        # for checking
+        # for drawing
+        self.image_count = 0
+
+        # ------------------------ for checking ----------------------------------
         self.demod = css_demod_algo(self.M)
         self.demod_conj = css_demod_algo(self.M, True)
 
@@ -68,6 +74,7 @@ class weak_lora_detect(gr.sync_block):
             self.buffer = numpy.zeros(5, dtype=numpy.int) - 1
             self.complex_buffer = numpy.zeros(5, dtype=numpy.complex64)
             self.buffer_meta = [dict() for i in range(0, 5)]
+        # ------------------------ !for checking ----------------------------------
 
         self.set_output_multiple(self.sending_size)
 
@@ -106,6 +113,15 @@ class weak_lora_detect(gr.sync_block):
         else:
             pass
 
+    def draw_graph(self):
+        # x = numpy.linspace(0, 10, 1)
+        #y = buffer[x]
+        plt.plot(self.energe_buffer)
+        #plt.show()
+        plt.savefig("%d.png" %(self.image_count))
+        plt.clf()
+        self.image_count += 1
+
     def work(self, input_items, output_items):
         signal_size = len(input_items[0])
 
@@ -136,23 +152,24 @@ class weak_lora_detect(gr.sync_block):
             
             ## Step 4
             if(self.energe_buffer[-1] > self.energe_buffer[-2]):
-                self.increase_count += 1
                 self.decrease_count = 0
-            else:
+                self.increase_count += 1
+                self.max_mag = self.energe_buffer[-1]
                 if(self.increase_count >= 6):
-                    self.decrease_count += 1
-                    if(self.decrease_count >= 2):
-                        print("detect lora preamble (with charm)")
-                        max_bin, energe = self.find_maximum()
-                        # print("max bin:", max_bin)
-                        # print("max mag:", energe)
-                        self.sending_mode = True
-
-                        self.increase_count = 0
-                        self.decrease_count = 0
-                else:
-                    self.increase_count = 0
-                    self.decrease_count = 0
+                    self.enough_increase = True
+            else:
+                self.increase_count = 0
+                self.decrease_count += 1
+                if(self.enough_increase):
+                    if(self.decrease_count >= 6):
+                        self.enough_increase = False
+                        if(self.max_mag > self.energe_buffer[-15] * 5):
+                            self.draw_graph()
+                            print("detect lora preamble (with charm)")
+                            max_bin, energe = self.find_maximum()
+                            # print("max bin:", max_bin)
+                            # print("max mag:", energe)
+                            self.sending_mode = True
 
             # --------------------------- Checking Start ---------------------------
             self.buffer = numpy.roll(self.buffer, -1)
