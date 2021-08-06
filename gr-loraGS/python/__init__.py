@@ -35,4 +35,5 @@ except ImportError:
 from .lora_preamble_detect import lora_preamble_detect
 from .preamble_detect_test import preamble_detect_test
 from .weak_index import weak_index
+from .weak_test1 import weak_test1
 #

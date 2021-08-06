@@ -34,7 +34,9 @@ GR_PYTHON_INSTALL(
     __init__.py
     lora_preamble_detect.py
     preamble_detect_test.py
-    weak_index.py DESTINATION ${GR_PYTHON_DIR}/loraGS
+    weak_index.py
+    weak_test1.py
+    weak_test1.py DESTINATION ${GR_PYTHON_DIR}/loraGS
 )
 
 ########################################################################
@@ -44,3 +46,4 @@ include(GrTest)
 
 set(GR_TEST_TARGET_DEPS gnuradio-loraGS)
 set(GR_TEST_PYTHON_DIRS ${CMAKE_BINARY_DIR}/swig)
+GR_ADD_TEST(qa_weak_test1 ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_weak_test1.py)
