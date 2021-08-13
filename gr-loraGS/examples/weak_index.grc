@@ -388,7 +388,7 @@ blocks:
     bus_structure: null
     coordinate: [536, 548.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: loraGS_weak_index_0
   id: loraGS_weak_index
   parameters:
@@ -406,7 +406,7 @@ blocks:
     bus_structure: null
     coordinate: [568, 812.0]
     rotation: 0
-    state: disabled
+    state: enabled
 - name: loraGS_weak_test1_0
   id: loraGS_weak_test1
   parameters:
@@ -446,7 +446,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [696, 332.0]
+    coordinate: [672, 372.0]
     rotation: 0
     state: enabled
 - name: mmse_resampler_xx_0

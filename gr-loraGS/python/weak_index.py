@@ -22,6 +22,7 @@
 
 import numpy
 from gnuradio import gr
+from lora2 import css_demod_algo
 import matplotlib.pyplot as plt
 
 class weak_index(gr.sync_block):
@@ -38,25 +39,17 @@ class weak_index(gr.sync_block):
         self.preamble_len = preamble_len
         self.thres = threshold
 
-         # for charm
-        self.max_chunk_count = 32
+        # for charm
+        self.max_chunk_count = 40
+        self.check_index = 30
         self.signal_buffer = numpy.zeros(self.M * self.max_chunk_count, dtype=numpy.complex64)
-
-        #
-        self.save_buffer = numpy.zeros(self.M * self.max_chunk_count * self.preamble_len , dtype=numpy.complex64)
-        self.image_count = 0
-        #
         self.signal_index = 0
         self.energe_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.float) - 1
         self.bin_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.int) - 1
+        self.max_mag = 0
         self.increase_count = 0
-        self.index_num = 0
-        self.result = 0
-        #Buffers are initially set to -1
-        self.buffer_meta = [dict() for i in range(0, self.max_chunk_count)]
-
-        # ?
-        self.set_output_multiple(self.M)
+        self.decrease_count = 0
+        self.enough_increase = False
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
@@ -65,114 +58,221 @@ class weak_index(gr.sync_block):
 
         # for sending
         self.sending_mode = False
-        self.sending_size = 15 * self.M
-        self.sending_index = 0
+        self.sending_size = 10 * self.M
+
+        # for drawing
+        self.image_count = 0
+        self.image_count2 = 0
+
+        # ------------------------ for checking ----------------------------------
+        self.demod = css_demod_algo(self.M)
+        self.demod_conj = css_demod_algo(self.M, True)
+
+        if preamble_len > 2:
+            self.buffer = numpy.zeros(preamble_len + 2, dtype=numpy.int) - 1
+            self.complex_buffer = numpy.zeros(preamble_len + 2, dtype=numpy.complex64)
+            self.buffer_meta = [dict() for i in range(0, preamble_len + 2)]
+        else:
+            self.buffer = numpy.zeros(5, dtype=numpy.int) - 1
+            self.complex_buffer = numpy.zeros(5, dtype=numpy.complex64)
+            self.buffer_meta = [dict() for i in range(0, 5)]
+        # ------------------------ !for checking ----------------------------------
+
+        self.set_output_multiple(self.sending_size)     
 
     def find_maximum(self):
         max_index = 0
-        print("%10s\t\t\t%10s\t\t\t%10s" %("index","bin","energe"))
-        for k in range(self.max_chunk_count):
+        for k in range(30):
             if(self.energe_buffer[k] > self.energe_buffer[max_index]):
                 max_index = k
-            print("%d\t\t\t%d\t\t\t%.2f" %(k, self.bin_buffer[k], self.energe_buffer[k]))
-        self.index_num = max_index
-        print("index_num : ", self.index_num)
-        return (self.bin_buffer[max_index], self.energe_buffer[max_index], self.index_num)
-    
-    def find_index(self, max_index):
-        if(max_index <= 23):
-            result_signals = self.save_buffer[(max_index)*self.M*self.preamble_len:(max_index+1)*self.M*self.preamble_len]
-            #print("length of result_signals: ", len(result_signals))
-            result_signals_dechirp = result_signals*self.dechirp_8
-            result_signals_fft = numpy.fft.fftshift(numpy.fft.fft(result_signals_dechirp))
-            self.result = numpy.max(numpy.abs(result_signals_fft))
-        
-        return self.result
+        return (max_index, self.energe_buffer[max_index])
 
-    def draw_graph(self, buffer):
-        x = numpy.linspace(0, len(buffer) -1, 1)
-        #y = buffer[x]
-        plt.plot(buffer)
-        #plt.show()
-        #plt.savefig('./image/test%d.png' %(self.image_count)/test%d.png' %(self.image_count))
-        plt.savefig("/home/yun/LoRa-Gateway/gr-loraGS/python/image/image%d.png" %(self.image_count))
-        plt.clf()
-        self.image_count += 1
+    # ---------------------------------------------------------------------------------------------------
+    def set_frequency_offset(self, signal_index, bin_number):
+        original_signal_dechirped = self.signal_buffer[signal_index : signal_index + (self.M*8)] * self.dechirp_8
+        # original_signal_fft = numpy.fft.fft(original_signal_dechirped)
+        original_signal_fft = numpy.fft.fftshift(numpy.fft.fft(original_signal_dechirped))
+        original_signal_fft_abs = numpy.abs(original_signal_fft)
+
+        description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/origin_abs%d.png" %(self.image_count)
+        max_mag = numpy.max(original_signal_fft_abs)
+        max_bin = numpy.argmax(original_signal_fft_abs)
+        self.draw_graph2(original_signal_fft_abs, description, max_mag, max_bin)
+
+        # k = numpy.linspace(0.0, self.M*8 -1.0, self.M*8) / 125000
+        k = numpy.linspace(signal_index, signal_index + (self.M*8) - 1.0, self.M*8) / 125000
+        time_offset = k
+        # Method 1
+        fft_interval = 125000 / (self.M * 8)
+        frequency_offset_bin = max_bin - (self.M * 4)
+        print("What I got bin number : ", max_bin)
+        frequency_offset = frequency_offset_bin * fft_interval
+        frequency_func = numpy.exp(2j*numpy.pi*(-frequency_offset)*(time_offset))
+
+        # # Method 2
+        # fft_interval = 1 / (self.M * 8)
+        # frequency_offset_bin = max_bin - (self.M * 4)
+        # print("What I got bin number : ", max_bin)
+        # frequency_offset = frequency_offset_bin * fft_interval
+        # frequency_func = numpy.exp(1j*numpy.pi*(-frequency_offset)*(time_offset))
+
+        adjusted_signal_dechirped = self.signal_buffer[signal_index : signal_index + (self.M*8)] * frequency_func * self.dechirp_8
+        # adjusted_signal_fft = numpy.fft.fft(adjusted_signal_dechirped)
+        adjusted_signal_fft = numpy.fft.fftshift(numpy.fft.fft(adjusted_signal_dechirped))
+        adjusted_signal_fft_abs = numpy.abs(adjusted_signal_fft)
+
+        description2 = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/adj_abs%d.png" %(self.image_count2)
+        max_adj_mag = numpy.max(adjusted_signal_fft_abs)
+        max_adj_bin = numpy.argmax(adjusted_signal_fft_abs)
+        print("What I want bin : ", max_adj_bin)
+        self.draw_graph2(adjusted_signal_fft_abs, description2, max_adj_mag, max_adj_bin)
+
+
+    # ---------------------------------------------------------------------------------------------------
+
+    def find_maximum_detail(self, k):
+        self.energe_buffer_detail = numpy.zeros(3 * self.M, dtype=numpy.float) - 1
+        self.bin_buffer_detail = numpy.zeros(3 * self.M, dtype=numpy.float) - 1
         
-    def find_max_magnitude(self, max_index):
-        arr = []
-        if(max_index <= 23):
-            for i in range(0,1024):
-                dechirp_max = self.save_buffer[(max_index)*self.M*8 + (i+1): (max_index+1)*self.M*8 + (i+1)]
-                dechirp_max_signal = dechirp_max * self.dechirp_8
-                dechirp_max_fft = numpy.fft.fftshift(numpy.fft.fft(dechirp_max_signal))
-                #print("Max : ", numpy.max(numpy.abs(dechirp_max_fft)))
-                arr.append(numpy.max(numpy.abs(dechirp_max_fft)))
-            self.draw_graph(arr)
-    
+        for i in range(3 * self.M):
+            try:
+                dechirped_signals = self.signal_buffer[self.M * (k - 8) + i: self.M * k + i]*self.dechirp_8
+                dechirped_signals_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_signals))
+                dechirped_signals_fft2 = numpy.fft.fftshift(numpy.fft.fft(dechirped_signals))
+                self.energe_buffer_detail[i] = numpy.max(numpy.abs(dechirped_signals_fft))
+                self.bin_buffer_detail[i] = numpy.argmax(numpy.abs(dechirped_signals_fft))
+            except:
+                print(self.M * (k - 1) + i - self.M *8, self.M * (k - 1) + i)
+        # print("Origin bin : ", self.bin_buffer[k])
+        origin_mag = numpy.max(numpy.abs(self.energe_buffer_detail))
+        finded_index = numpy.argmax(numpy.abs(self.energe_buffer_detail))
+        # self.draw_graph(self.energe_buffer_detail, "/home/yun/LoRa-Gateway/gr-loraGS/python/image/image_max%d.png" %(self.image_count),origin_mag, origin_bin, self.bin_buffer[k])
+        signal_index = self.M*(k-8) + finded_index
+        bin_num = self.bin_buffer[k]
+        
+        self.set_frequency_offset(signal_index, bin_num)
+
+        return numpy.argmax(numpy.abs(self.energe_buffer_detail)), numpy.max(numpy.abs(self.energe_buffer_detail))
+
+    def detect_preamble(self):
+        #Buffer not full yet
+        if self.buffer[0] == -1:
+            return False
+
+        mean = numpy.mean(self.buffer[-(self.preamble_len+2):-2])
+        mean_err_sq = numpy.sum(numpy.abs(self.buffer[-(self.preamble_len+2):-2] - mean)**2)
+        max_err_sq = self.M**2
+
+        if(mean_err_sq/max_err_sq < self.thres):
+            self.buffer_meta[self.preamble_len-1]['preamble_value'] = numpy.uint16(numpy.round(mean))
+            return True
+        else:
+            pass
+
+    def draw_graph(self, graph, description, mag, bin, bin2):
+        plt.plot(graph)
+        plt.title("mag: %.2f    bin: %d    origin_bin: %d" %(mag,bin,bin2))
+        plt.savefig(description)
+        plt.clf()
+
+    def draw_graph2(self, graph, description, mag, bin):
+        plt.plot(graph)
+        plt.title("mag: %.2f    bin: %d" %(mag,bin))
+        plt.savefig(description)
+        plt.clf()
+
+    def draw_graph3(self, graph, description):
+        plt.plot(graph)
+        # plt.title("mag: %.2f    bin: %d    origin_bin: %d" %(mag,bin,bin2))
+        plt.savefig(description)
+        plt.clf()
 
     def work(self, input_items, output_items):
         signal_size = len(input_items[0])
-        
+
         ## save signal
         self.signal_buffer = numpy.roll(self.signal_buffer, -signal_size)
         self.signal_buffer[-signal_size:] = input_items[0]
-
+        
         ## signal_size check
         if(self.signal_index < self.M * (self.preamble_len+2)):
             self.signal_index += signal_size
             return len(output_items[0])
         # else
-
-        ## Step 3
         n_syms = signal_size//self.M
-        #print("signal_size: ", signal_size)
-        check_index = self.preamble_len - 1
  
-        # for i in range(0, n_syms): 2 1
-        for i in range(n_syms, 0, -1):
-            # dechirped_signals = self.signal_buffer[(self.max_chunk_count - n_syms + i - 7)*self.M:(self.max_chunk_count - n_syms + i + 1)*self.M] * self.dechirp_8
-            # dechirped_signals = input_items[0][i*self.M : (i+8)*self.M] * self.dechirp_8
-            dechirped_signals = numpy.roll(self.signal_buffer, (i-1)*self.M)[-8*self.M:]*self.dechirp_8    
+        for i in range(0, n_syms):
+            ## save energe buffer
+            dechirped_signals = self.signal_buffer[(self.max_chunk_count + 1 - n_syms + i - 8)*self.M:(self.max_chunk_count + 1 - n_syms + i)*self.M] * self.dechirp_8
             dechirped_signals_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_signals))
-            self.save_buffer = numpy.roll(self.save_buffer, -8*self.M)
-            self.save_buffer[-8*self.M:] = numpy.roll(self.signal_buffer, (i-1)*self.M)[-8*self.M:]
 
             self.energe_buffer = numpy.roll(self.energe_buffer, -1)
             self.energe_buffer[-1] = numpy.max(numpy.abs(dechirped_signals_fft))
             self.bin_buffer = numpy.roll(self.bin_buffer, -1)
             self.bin_buffer[-1] = numpy.argmax(numpy.abs(dechirped_signals_fft))
             
-            ## Step 4
-            check_index = 15
-            if(self.energe_buffer[check_index-1] > self.energe_buffer[check_index-2]):
+            ## check
+            if(self.energe_buffer[self.check_index - 1] > self.energe_buffer[self.check_index - 2]):
+            # if(self.energe_buffer[self.check_index - 1] > self.energe_buffer[self.check_index - 2] + self.thres):
+                self.decrease_count = 0
                 self.increase_count += 1
-                
-            elif(self.energe_buffer[check_index-1] == self.energe_buffer[check_index-2]):
-                pass
-            else:
-                if(self.increase_count >= 6):
-                    # print("detect lora preamble (with charm)")
-                    max_bin, energe, max_index = self.find_maximum()
-                    print("max bin:", max_bin)
-                    print("max mag:", energe)
-                    self.sending_mode = True
-                    print("======================")
-                    ans = self.find_index(max_index)
-                    print("answer : ", ans) 
-                    print("======================")
-                    self.find_max_magnitude(max_index)
-                    print("sending")
+                self.max_mag = self.energe_buffer[self.check_index - 1]
+                if(self.increase_count >= 5):
+                    self.enough_increase = True
+            elif(self.energe_buffer[self.check_index - 1] < self.energe_buffer[self.check_index - 2]):
+            # elif(self.energe_buffer[self.check_index - 1] < self.energe_buffer[self.check_index - 2] - self.thres):
                 self.increase_count = 0
-        
+                self.decrease_count += 1
+                if(self.enough_increase):
+                    if(self.decrease_count >= 5):
+                        self.enough_increase = False
+                        if(self.max_mag > self.energe_buffer[0] * 5):
+                            self.image_count += 1
+                            self.image_count2 += 1
+                            # self.draw_graph(self.energe_buffer, "/home/yun/LoRa-Gateway/gr-loraGS/python/image/board/energe%d.png" %(self.image_count))
+                            print("detect lora preamble (with charm)")
+                            max_index, energe = self.find_maximum()
+                            # print("max_index:", max_index, n_syms, i)
+                            # print("maximum:", energe)
+                            self.max_index_detail, max_detail = self.find_maximum_detail(max_index - (n_syms - i - 1))
+                            # print("bin : ", self.max_index_detail)
+                            self.sending_index = self.M * (max_index - 1 - 8) + i
+                            self.sending_mode = True
+            else:
+                pass
+
+            # --------------------------- Checking Start ---------------------------
+            self.buffer = numpy.roll(self.buffer, -1)
+            self.complex_buffer = numpy.roll(self.complex_buffer, -1)
+            self.buffer_meta.pop(0)
+            self.buffer_meta.append(dict())
+
+            sig = input_items[0][i*self.M:(i+1)*self.M]
+            (hard_sym, complex_sym) = self.demod.complex_demodulate(sig)
+            self.buffer[-1] = hard_sym[0]
+            self.complex_buffer[-1] = complex_sym[0]
+
+            #Conjugate demod and shift conjugate buffer, if needed
+            #AABBC or ABBCC
+            #   ^       ^
+            if ('sync_value' in self.buffer_meta[-2]) or ('sync_value' in self.buffer_meta[-3]):
+                self.conj_buffer = numpy.roll(self.conj_buffer, -1)
+                self.conj_complex_buffer = numpy.roll(self.conj_complex_buffer, -1)
+
+                (hard_sym, complex_sym) = self.demod_conj.complex_demodulate(sig)
+                self.conj_buffer[-1] = hard_sym[0]
+                self.conj_complex_buffer[-1] = complex_sym[0]
+
+            #Check for preamble
+            if(self.detect_preamble()):
+                print("Detect Preamble(Origin)")
+            # --------------------------- Checking End ---------------------------
+
         # send
         if(self.sending_mode):
-            self.sending_index += signal_size
-            output_items[0][:] = self.signal_buffer[:signal_size]
-            if(self.sending_index >= self.sending_size):
-                self.sending_index = 0
-                self.sending_mode = False
+            # output_items[0][:] = self.signal_buffer[-self.sending_size :]
+            output_items[0][:] = self.signal_buffer[self.sending_index: self.sending_index + self.sending_size]
         else:
-            output_items[0][:] = numpy.random.normal(size=signal_size)
-
+            output_items[0][:] = numpy.random.normal(size=self.sending_size)
+        self.sending_mode = False
         return len(output_items[0])

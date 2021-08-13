@@ -20,18 +20,20 @@ if __name__ == '__main__':
         except:
             print("Warning: failed to XInitThreads()")
 
+from PyQt5 import Qt
+from gnuradio import qtgui
+from gnuradio.filter import firdes
+import sip
 from gnuradio import blocks
 from gnuradio import filter
-from gnuradio.filter import firdes
 from gnuradio import gr
 import sys
 import signal
-from PyQt5 import Qt
 from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio.qtgui import Range, RangeWidget
-import lora2
+import loraGS
 import numpy
 import osmosdr
 import time
@@ -108,6 +110,23 @@ class lora_rx(gr.top_block, Qt.QWidget):
         self.rtlsdr_source_0.set_bb_gain(20, 0)
         self.rtlsdr_source_0.set_antenna('', 0)
         self.rtlsdr_source_0.set_bandwidth(0, 0)
+        self.qtgui_sink_x_0 = qtgui.sink_c(
+            1024, #fftsize
+            firdes.WIN_BLACKMAN_hARRIS, #wintype
+            0, #fc
+            RF_samp_rate, #bw
+            "", #name
+            True, #plotfreq
+            True, #plotwaterfall
+            True, #plottime
+            True #plotconst
+        )
+        self.qtgui_sink_x_0.set_update_time(1.0/10)
+        self._qtgui_sink_x_0_win = sip.wrapinstance(self.qtgui_sink_x_0.pyqwidget(), Qt.QWidget)
+
+        self.qtgui_sink_x_0.enable_rf_freq(False)
+
+        self.top_layout.addWidget(self._qtgui_sink_x_0_win)
         self.mmse_resampler_xx_0 = filter.mmse_resampler_cc(0.0, frac_decim)
         self.low_pass_filter_0 = filter.fir_filter_ccf(
             decim,
@@ -118,9 +137,8 @@ class lora_rx(gr.top_block, Qt.QWidget):
                 (chan_bw + chan_margin)/8,
                 firdes.WIN_HAMMING,
                 6.76))
-        self.lora2_lora_preamble_detect_0_0 = lora2.lora_preamble_detect(10, 8, thres=1e-4)
+        self.loraGS_weak_index_0 = loraGS.weak_index(10, 1e-4, 8)
         self.freq_xlating_fir_filter_xxx_0 = filter.freq_xlating_fir_filter_ccc(1, [1], 0, RF_samp_rate)
-        self.blocks_udp_sink_0 = blocks.udp_sink(gr.sizeof_gr_complex*1, '', , 1472, True)
         self.blocks_throttle_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
         self._attenuation_range = Range(0.0, 89.75, 0.25, 20, 200)
         self._attenuation_win = RangeWidget(self._attenuation_range, self.set_attenuation, 'Attenuation', "counter_slider", float)
@@ -130,9 +148,9 @@ class lora_rx(gr.top_block, Qt.QWidget):
         ##################################################
         # Connections
         ##################################################
-        self.connect((self.blocks_throttle_0, 0), (self.lora2_lora_preamble_detect_0_0, 0))
+        self.connect((self.blocks_throttle_0, 0), (self.loraGS_weak_index_0, 0))
         self.connect((self.freq_xlating_fir_filter_xxx_0, 0), (self.low_pass_filter_0, 0))
-        self.connect((self.lora2_lora_preamble_detect_0_0, 0), (self.blocks_udp_sink_0, 0))
+        self.connect((self.loraGS_weak_index_0, 0), (self.qtgui_sink_x_0, 0))
         self.connect((self.low_pass_filter_0, 0), (self.mmse_resampler_xx_0, 0))
         self.connect((self.mmse_resampler_xx_0, 0), (self.blocks_throttle_0, 0))
         self.connect((self.rtlsdr_source_0, 0), (self.freq_xlating_fir_filter_xxx_0, 0))
@@ -193,6 +211,7 @@ class lora_rx(gr.top_block, Qt.QWidget):
         self.set_decim(self.RF_samp_rate//(self.interp*self.chan_bw))
         self.set_frac_decim(self.RF_samp_rate/((self.RF_samp_rate//(self.interp*self.chan_bw))*(self.interp*self.chan_bw)))
         self.low_pass_filter_0.set_taps(firdes.low_pass(200, self.RF_samp_rate, (self.chan_bw + self.chan_margin)/2, (self.chan_bw + self.chan_margin)/8, firdes.WIN_HAMMING, 6.76))
+        self.qtgui_sink_x_0.set_frequency_range(0, self.RF_samp_rate)
         self.rtlsdr_source_0.set_sample_rate(self.RF_samp_rate)
 
     def get_M(self):
