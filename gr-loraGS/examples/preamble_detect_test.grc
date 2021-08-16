@@ -61,23 +61,41 @@ blocks:
     bus_structure: null
     coordinate: [360, 180.0]
     rotation: 0
-    state: enabled
-- name: loraGS_preamble_detect_test_0
-  id: loraGS_preamble_detect_test
+    state: disabled
+- name: loraGS_weak_index_0
+  id: loraGS_weak_index
   parameters:
-    SF: '10'
     affinity: ''
     alias: ''
     comment: ''
     maxoutbuf: '0'
     minoutbuf: '0'
     preamble_len: '8'
-    thres: 1e-4
+    sf: '10'
+    threshold: 1e-4
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [352, 404.0]
+    coordinate: [336, 420.0]
+    rotation: 0
+    state: disabled
+- name: loraGS_weak_lora_detect_0
+  id: loraGS_weak_lora_detect
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    preamble_len: '8'
+    sf: '10'
+    threshold: 1e-4
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [384, 316.0]
     rotation: 0
     state: true
 - name: qtgui_sink_x_0
@@ -493,7 +511,7 @@ blocks:
     bus_structure: null
     coordinate: [632, 196.0]
     rotation: 0
-    state: true
+    state: disabled
 - name: virtual_source_0
   id: virtual_source
   parameters:
@@ -506,13 +524,15 @@ blocks:
     bus_structure: null
     coordinate: [80, 420.0]
     rotation: 0
-    state: enabled
+    state: disabled
 
 connections:
 - [loraGS_lora_preamble_detect_0, '0', virtual_sink_0, '0']
-- [loraGS_preamble_detect_test_0, '0', qtgui_sink_x_0, '0']
+- [loraGS_weak_index_0, '0', qtgui_sink_x_0, '0']
+- [loraGS_weak_lora_detect_0, '0', qtgui_sink_x_0, '0']
 - [uhd_usrp_source_0, '0', loraGS_lora_preamble_detect_0, '0']
-- [virtual_source_0, '0', loraGS_preamble_detect_test_0, '0']
+- [uhd_usrp_source_0, '0', loraGS_weak_index_0, '0']
+- [uhd_usrp_source_0, '0', loraGS_weak_lora_detect_0, '0']
 
 metadata:
   file_format: 1
