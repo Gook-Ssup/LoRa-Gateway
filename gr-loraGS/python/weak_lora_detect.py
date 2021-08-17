@@ -54,7 +54,7 @@ class weak_lora_detect(gr.sync_block):
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
         self.dechirp = numpy.exp(1j*numpy.pi*k/self.M*k)
-        self.dechirp_8 = numpy.tile(self.dechirp, self.preamble_len)
+        self.dechirp_8 = numpy.tile(self.dechirp, 8)
 
         # for sending
         self.sending_mode = False
@@ -128,7 +128,7 @@ class weak_lora_detect(gr.sync_block):
         # ----------------- !drawing ----------------- 
         adjusted_bin = numpy.argmax(numpy.abs(dechirped_adjusted_ffted))
         print("adjusted:", adjusted_bin)
-        return
+        return adjusted_bin
 
 
     def detect_preamble(self):
