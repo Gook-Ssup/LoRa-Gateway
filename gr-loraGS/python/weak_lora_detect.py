@@ -106,29 +106,28 @@ class weak_lora_detect(gr.sync_block):
         # find frequency offset
         fft_interval = 125000/(self.M*8)
         frequencyOffset_bin = bin_number - self.M * 4 # self.M * 8 / 2            // because shifted
-        # bin (0-8191)
         frequencyOffset = frequencyOffset_bin*fft_interval
+        print("Bin Offset", frequencyOffset_bin)
 
-        #print(frequencyOffset)
         # make signal
         k = numpy.linspace(0.0, self.M * 8 - 1.0, self.M * 8) / 125000
-        adjusting_signal = numpy.exp(1j*2*numpy.pi*(-frequencyOffset)*k)
-        adjusting_ffted = numpy.fft.fft(adjusting_signal)
-        print("Frequency_Offset:", frequencyOffset)
-        self.draw_graph(adjusting_ffted, '%d-1adjusting_signal' %(-frequencyOffset_bin))
+        offset_signal = numpy.exp(1j*2*numpy.pi*(-frequencyOffset)*k)
 
-        original_signal_dechirped= numpy.fft.fft(self.signal_buffer[signal_index:signal_index + self.M * 8]*self.dechirp_8)
-        self.draw_graph(abs(original_signal_dechirped), '%d-2origianl_signal' %(-frequencyOffset_bin))
+        # adjust CFO
+        self.adjusted_signal = self.signal_buffer[signal_index:signal_index + self.M * 8] * offset_signal
+        dechirped_adjusted_signal = self.adjusted_signal * self.dechirp_8
+        # ----------------- drawing ------------------
+        offset_ffted = numpy.fft.fft(offset_signal)
+        self.draw_graph(offset_ffted, '%d_1_offset_ffted' %(-frequencyOffset_bin)) 
 
-        # set CFO
-        adjusted_sigal = self.signal_buffer[signal_index:signal_index + self.M * 8] * adjusting_signal * self.dechirp_8
-        #adjusted_sigal_fft = numpy.fft.fftshift(numpy.fft.fft(adjusted_sigal))
-        adjusted_sigal_fft = numpy.fft.fft(adjusted_sigal)
-        self.draw_graph(abs(adjusted_sigal_fft), '%d-3adjusted_sigal_fft' %(-frequencyOffset_bin))
-        adjusted_bin = numpy.argmax(numpy.abs(adjusted_sigal_fft))
+        dechirped_origin_ffted = numpy.fft.fft(self.signal_buffer[signal_index:signal_index + self.M * 8]*self.dechirp_8)
+        self.draw_graph(abs(dechirped_origin_ffted), '%d_2_dechirped_origin_ffted' %(-frequencyOffset_bin))
+
+        dechirped_adjusted_ffted = numpy.fft.fft(dechirped_adjusted_signal)
+        self.draw_graph(abs(dechirped_adjusted_ffted), '%d_3_dechirped_adjusted_ffted' %(-frequencyOffset_bin))
+        # ----------------- !drawing ----------------- 
+        adjusted_bin = numpy.argmax(numpy.abs(dechirped_adjusted_ffted))
         print("adjusted:", adjusted_bin)
-
-        # self.draw_graph(adjusted_sigal_fft, 'adjusted_signal %d' %(-frequencyOffset))
         return
 
 
