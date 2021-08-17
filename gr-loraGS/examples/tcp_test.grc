@@ -60,7 +60,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [768, 236.0]
+    coordinate: [720, 236.0]
     rotation: 0
     state: enabled
 - name: loraGS_lora_preamble_detect_0
@@ -78,7 +78,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [504, 220.0]
+    coordinate: [456, 220.0]
     rotation: 0
     state: enabled
 - name: loraGS_preamble_detect_test_0
@@ -125,7 +125,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [768, 364.0]
+    coordinate: [728, 364.0]
     rotation: 0
     state: true
 - name: uhd_usrp_source_0
@@ -537,7 +537,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1008, 220.0]
+    coordinate: [904, 220.0]
     rotation: 0
     state: enabled
 

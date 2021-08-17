@@ -104,7 +104,7 @@ class weak_lora_detect(gr.sync_block):
 
     def set_frequencyOffset(self, signal_index, bin_number):
         # find frequency offset
-        fft_interval = 125000/8192
+        fft_interval = 125000/(self.M*8)
         frequencyOffset_bin = bin_number - self.M * 4 # self.M * 8 / 2            // because shifted
         # bin (0-8191)
         frequencyOffset = frequencyOffset_bin*fft_interval
