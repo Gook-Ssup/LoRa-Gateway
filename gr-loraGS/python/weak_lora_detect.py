@@ -128,8 +128,20 @@ class weak_lora_detect(gr.sync_block):
         # ----------------- !drawing ----------------- 
         adjusted_bin = numpy.argmax(numpy.abs(dechirped_adjusted_ffted))
         print("adjusted:", adjusted_bin)
+        self.channel_estimation()
         return adjusted_bin
 
+    def channel_estimation(self):
+        k = numpy.linspace(0.0, self.M - 1.0, self.M)
+        self.upchirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
+        self.upchirp_8 = numpy.tile(self.upchirp, self.preamble_len)
+
+        channel_est = self.adjusted_signal / self.upchirp_8
+
+        for i in range(8):
+            plt.plot(channel_est[i*self.M : (i+1)*self.M])
+            plt.savefig("estimation/est-%d-%d.png" %(self.image_count, i))
+            plt.clf()
 
     def detect_preamble(self):
         if self.buffer[0] == -1:

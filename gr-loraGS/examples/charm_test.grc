@@ -62,7 +62,7 @@ blocks:
     bus_structure: null
     coordinate: [552, 308.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: loraGS_lora_preamble_detect_0
   id: loraGS_lora_preamble_detect
   parameters:
@@ -98,7 +98,7 @@ blocks:
     bus_structure: null
     coordinate: [728, 292.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: loraGS_weak_lora_detect_0
   id: loraGS_weak_lora_detect
   parameters:
@@ -116,7 +116,7 @@ blocks:
     bus_structure: null
     coordinate: [352, 292.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: qtgui_sink_x_0_0
   id: qtgui_sink_x
   parameters:
@@ -145,7 +145,7 @@ blocks:
     bus_structure: null
     coordinate: [976, 276.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: qtgui_sink_x_0_0_0
   id: qtgui_sink_x
   parameters:
@@ -175,6 +175,35 @@ blocks:
     coordinate: [656, 148.0]
     rotation: 0
     state: disabled
+- name: qtgui_sink_x_0_0_1
+  id: qtgui_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    bw: samp_rate
+    comment: ''
+    fc: '0'
+    fftsize: '1024'
+    gui_hint: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    name: charm detect
+    plotconst: 'True'
+    plotfreq: 'True'
+    plottime: 'True'
+    plotwaterfall: 'True'
+    rate: '10'
+    showports: 'False'
+    showrf: 'False'
+    type: complex
+    wintype: firdes.WIN_BLACKMAN_hARRIS
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [352, 388.0]
+    rotation: 0
+    state: enabled
 - name: uhd_usrp_source_0
   id: uhd_usrp_source
   parameters:
@@ -555,6 +584,7 @@ connections:
 - [loraGS_weak_lora_detect_0, '0', blocks_throttle_0, '0']
 - [uhd_usrp_source_0, '0', loraGS_lora_preamble_detect_0, '0']
 - [uhd_usrp_source_0, '0', loraGS_weak_lora_detect_0, '0']
+- [uhd_usrp_source_0, '0', qtgui_sink_x_0_0_1, '0']
 
 metadata:
   file_format: 1
