@@ -55,6 +55,8 @@ class weak_index(gr.sync_block):
         k = numpy.linspace(0.0, self.M-1.0, self.M)
         self.dechirp = numpy.exp(1j*numpy.pi*k/self.M*k)
         self.dechirp_8 = numpy.tile(self.dechirp, self.preamble_len)
+        # self.adjusted_signal = None
+        
 
         # for sending
         self.sending_mode = False
@@ -63,6 +65,9 @@ class weak_index(gr.sync_block):
         # for drawing
         self.image_count = 0
         self.image_count2 = 0
+        self.image_count3 = 0
+
+        self.sending_block = 0
 
         # ------------------------ for checking ----------------------------------
         self.demod = css_demod_algo(self.M)
@@ -97,7 +102,7 @@ class weak_index(gr.sync_block):
         description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/origin_abs%d.png" %(self.image_count)
         max_mag = numpy.max(original_signal_fft_abs)
         max_bin = numpy.argmax(original_signal_fft_abs)
-        self.draw_graph2(original_signal_fft_abs, description, max_mag, max_bin)
+        # self.draw_graph2(original_signal_fft_abs, description, max_mag, max_bin)
 
         # k = numpy.linspace(0.0, self.M*8 -1.0, self.M*8) / 125000
         k = numpy.linspace(signal_index, signal_index + (self.M*8) - 1.0, self.M*8) / 125000
@@ -109,14 +114,9 @@ class weak_index(gr.sync_block):
         frequency_offset = frequency_offset_bin * fft_interval
         frequency_func = numpy.exp(2j*numpy.pi*(-frequency_offset)*(time_offset))
 
-        # # Method 2
-        # fft_interval = 1 / (self.M * 8)
-        # frequency_offset_bin = max_bin - (self.M * 4)
-        # print("What I got bin number : ", max_bin)
-        # frequency_offset = frequency_offset_bin * fft_interval
-        # frequency_func = numpy.exp(1j*numpy.pi*(-frequency_offset)*(time_offset))
 
         adjusted_signal_dechirped = self.signal_buffer[signal_index : signal_index + (self.M*8)] * frequency_func * self.dechirp_8
+        
         # adjusted_signal_fft = numpy.fft.fft(adjusted_signal_dechirped)
         adjusted_signal_fft = numpy.fft.fftshift(numpy.fft.fft(adjusted_signal_dechirped))
         adjusted_signal_fft_abs = numpy.abs(adjusted_signal_fft)
@@ -125,8 +125,39 @@ class weak_index(gr.sync_block):
         max_adj_mag = numpy.max(adjusted_signal_fft_abs)
         max_adj_bin = numpy.argmax(adjusted_signal_fft_abs)
         print("What I want bin : ", max_adj_bin)
-        self.draw_graph2(adjusted_signal_fft_abs, description2, max_adj_mag, max_adj_bin)
+        print("max_adj_mag : ", max_adj_mag)
+        # self.draw_graph2(adjusted_signal_fft_abs, description2, max_adj_mag, max_adj_bin)
 
+        # self.adjusted_signal = self.signal_buffer[signal_index : signal_index + (self.M*8)] * frequency_func
+        self.adjusted_signal = self.signal_buffer[signal_index:signal_index + self.M * 8] * frequency_func
+        dechirped_adjusted_signal = self.adjusted_signal * self.dechirp_8
+
+        # signal combine
+        self.combine_signal = numpy.zeros(self.M * self.preamble_len, dtype=numpy.complex64)
+        self.combine_signal = self.adjusted_signal + self.adjusted_signal
+        dechirped_combine_signal = self.combine_signal * self.dechirp_8
+        combine_signal_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
+        combine_signal_fft_abs = numpy.abs(combine_signal_fft)
+
+        # description3 = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/combine_abs%d.png" %(self.image_count2)
+        max_combine_mag = numpy.max(combine_signal_fft_abs)
+        max_combine_bin = numpy.argmax(combine_signal_fft_abs)
+        # self.draw_graph2(combine_signal_fft_abs, description3, max_combine_mag, max_combine_bin)
+
+        self.sending_block = 1
+        
+
+        # self.channel_estimation()
+
+    def channel_estimation(self):
+        k = numpy.linspace(0.0, self.M - 1.0, self.M)
+        self.upchirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
+        self.upchirp_8 = numpy.tile(self.upchirp, self.preamble_len)
+
+        channel_est = self.adjusted_signal / self.upchirp_8
+
+        # conj_h = numpy.conj(channel_est)
+        # result_h = conj*h * self.adjusted_signal
 
     # ---------------------------------------------------------------------------------------------------
 
@@ -189,7 +220,7 @@ class weak_index(gr.sync_block):
 
     def work(self, input_items, output_items):
         signal_size = len(input_items[0])
-
+        self.sending_block = 0
         ## save signal
         self.signal_buffer = numpy.roll(self.signal_buffer, -signal_size)
         self.signal_buffer[-signal_size:] = input_items[0]
@@ -236,7 +267,7 @@ class weak_index(gr.sync_block):
                             # print("maximum:", energe)
                             self.max_index_detail, max_detail = self.find_maximum_detail(max_index - (n_syms - i - 1))
                             # print("bin : ", self.max_index_detail)
-                            self.sending_index = self.M * (max_index - 1 - 8) + i
+                            self.sending_index = self.M * (max_index - 1 - 8) + self.max_index_detail
                             self.sending_mode = True
             else:
                 pass
@@ -271,8 +302,10 @@ class weak_index(gr.sync_block):
         # send
         if(self.sending_mode):
             # output_items[0][:] = self.signal_buffer[-self.sending_size :]
-            output_items[0][:] = self.signal_buffer[self.sending_index: self.sending_index + self.sending_size]
+            # output_items[0][:] = self.signal_buffer[self.sending_index: self.sending_index + self.sending_size]
+            output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.M * self.preamble_len]
         else:
-            output_items[0][:] = numpy.random.normal(size=self.sending_size)
+            # output_items[0][:] = numpy.random.normal(size=self.sending_size)
+            output_items[0][:] = numpy.zeros(self.sending_size, dtype=numpy.complex64)
         self.sending_mode = False
         return len(output_items[0])

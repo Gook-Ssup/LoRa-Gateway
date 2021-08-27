@@ -99,7 +99,7 @@ class lora_rx(gr.top_block, Qt.QWidget):
         # Blocks
         ##################################################
         self.rtlsdr_source_0 = osmosdr.source(
-            args="numchan=" + str(1) + " " + ""
+            args="numchan=" + str(2) + " " + ""
         )
         self.rtlsdr_source_0.set_time_unknown_pps(osmosdr.time_spec_t())
         self.rtlsdr_source_0.set_sample_rate(RF_samp_rate)
@@ -110,6 +110,13 @@ class lora_rx(gr.top_block, Qt.QWidget):
         self.rtlsdr_source_0.set_bb_gain(20, 0)
         self.rtlsdr_source_0.set_antenna('', 0)
         self.rtlsdr_source_0.set_bandwidth(0, 0)
+        self.rtlsdr_source_0.set_center_freq(915e6, 1)
+        self.rtlsdr_source_0.set_freq_corr(0, 1)
+        self.rtlsdr_source_0.set_gain(10, 1)
+        self.rtlsdr_source_0.set_if_gain(20, 1)
+        self.rtlsdr_source_0.set_bb_gain(20, 1)
+        self.rtlsdr_source_0.set_antenna('', 1)
+        self.rtlsdr_source_0.set_bandwidth(0, 1)
         self.qtgui_sink_x_0 = qtgui.sink_c(
             1024, #fftsize
             firdes.WIN_BLACKMAN_hARRIS, #wintype
@@ -127,7 +134,17 @@ class lora_rx(gr.top_block, Qt.QWidget):
         self.qtgui_sink_x_0.enable_rf_freq(False)
 
         self.top_layout.addWidget(self._qtgui_sink_x_0_win)
+        self.mmse_resampler_xx_0_0 = filter.mmse_resampler_cc(0.0, frac_decim)
         self.mmse_resampler_xx_0 = filter.mmse_resampler_cc(0.0, frac_decim)
+        self.low_pass_filter_0_0 = filter.fir_filter_ccf(
+            decim,
+            firdes.low_pass(
+                200,
+                RF_samp_rate,
+                (chan_bw + chan_margin)/2,
+                (chan_bw + chan_margin)/8,
+                firdes.WIN_HAMMING,
+                6.76))
         self.low_pass_filter_0 = filter.fir_filter_ccf(
             decim,
             firdes.low_pass(
@@ -137,8 +154,12 @@ class lora_rx(gr.top_block, Qt.QWidget):
                 (chan_bw + chan_margin)/8,
                 firdes.WIN_HAMMING,
                 6.76))
+        self.loraGS_weak_index_0_0 = loraGS.weak_index(10, 1e-4, 8)
         self.loraGS_weak_index_0 = loraGS.weak_index(10, 1e-4, 8)
+        self.loraGS_add2_0 = loraGS.add2(0)
+        self.freq_xlating_fir_filter_xxx_0_0 = filter.freq_xlating_fir_filter_ccc(1, [1], 0, RF_samp_rate)
         self.freq_xlating_fir_filter_xxx_0 = filter.freq_xlating_fir_filter_ccc(1, [1], 0, RF_samp_rate)
+        self.blocks_throttle_0_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
         self.blocks_throttle_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
         self._attenuation_range = Range(0.0, 89.75, 0.25, 20, 200)
         self._attenuation_win = RangeWidget(self._attenuation_range, self.set_attenuation, 'Attenuation', "counter_slider", float)
@@ -149,11 +170,18 @@ class lora_rx(gr.top_block, Qt.QWidget):
         # Connections
         ##################################################
         self.connect((self.blocks_throttle_0, 0), (self.loraGS_weak_index_0, 0))
+        self.connect((self.blocks_throttle_0_0, 0), (self.loraGS_weak_index_0_0, 0))
         self.connect((self.freq_xlating_fir_filter_xxx_0, 0), (self.low_pass_filter_0, 0))
-        self.connect((self.loraGS_weak_index_0, 0), (self.qtgui_sink_x_0, 0))
+        self.connect((self.freq_xlating_fir_filter_xxx_0_0, 0), (self.low_pass_filter_0_0, 0))
+        self.connect((self.loraGS_add2_0, 0), (self.qtgui_sink_x_0, 0))
+        self.connect((self.loraGS_weak_index_0, 0), (self.loraGS_add2_0, 0))
+        self.connect((self.loraGS_weak_index_0_0, 0), (self.loraGS_add2_0, 1))
         self.connect((self.low_pass_filter_0, 0), (self.mmse_resampler_xx_0, 0))
+        self.connect((self.low_pass_filter_0_0, 0), (self.mmse_resampler_xx_0_0, 0))
         self.connect((self.mmse_resampler_xx_0, 0), (self.blocks_throttle_0, 0))
+        self.connect((self.mmse_resampler_xx_0_0, 0), (self.blocks_throttle_0_0, 0))
         self.connect((self.rtlsdr_source_0, 0), (self.freq_xlating_fir_filter_xxx_0, 0))
+        self.connect((self.rtlsdr_source_0, 1), (self.freq_xlating_fir_filter_xxx_0_0, 0))
 
 
     def closeEvent(self, event):
@@ -202,6 +230,7 @@ class lora_rx(gr.top_block, Qt.QWidget):
         self.set_freq_offset(4*self.chan_bw)
         self.set_samp_rate(self.chan_bw)
         self.low_pass_filter_0.set_taps(firdes.low_pass(200, self.RF_samp_rate, (self.chan_bw + self.chan_margin)/2, (self.chan_bw + self.chan_margin)/8, firdes.WIN_HAMMING, 6.76))
+        self.low_pass_filter_0_0.set_taps(firdes.low_pass(200, self.RF_samp_rate, (self.chan_bw + self.chan_margin)/2, (self.chan_bw + self.chan_margin)/8, firdes.WIN_HAMMING, 6.76))
 
     def get_RF_samp_rate(self):
         return self.RF_samp_rate
@@ -211,6 +240,7 @@ class lora_rx(gr.top_block, Qt.QWidget):
         self.set_decim(self.RF_samp_rate//(self.interp*self.chan_bw))
         self.set_frac_decim(self.RF_samp_rate/((self.RF_samp_rate//(self.interp*self.chan_bw))*(self.interp*self.chan_bw)))
         self.low_pass_filter_0.set_taps(firdes.low_pass(200, self.RF_samp_rate, (self.chan_bw + self.chan_margin)/2, (self.chan_bw + self.chan_margin)/8, firdes.WIN_HAMMING, 6.76))
+        self.low_pass_filter_0_0.set_taps(firdes.low_pass(200, self.RF_samp_rate, (self.chan_bw + self.chan_margin)/2, (self.chan_bw + self.chan_margin)/8, firdes.WIN_HAMMING, 6.76))
         self.qtgui_sink_x_0.set_frequency_range(0, self.RF_samp_rate)
         self.rtlsdr_source_0.set_sample_rate(self.RF_samp_rate)
 
@@ -227,6 +257,7 @@ class lora_rx(gr.top_block, Qt.QWidget):
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.blocks_throttle_0.set_sample_rate(self.samp_rate)
+        self.blocks_throttle_0_0.set_sample_rate(self.samp_rate)
 
     def get_radio_offset(self):
         return self.radio_offset
@@ -252,6 +283,7 @@ class lora_rx(gr.top_block, Qt.QWidget):
     def set_frac_decim(self, frac_decim):
         self.frac_decim = frac_decim
         self.mmse_resampler_xx_0.set_resamp_ratio(self.frac_decim)
+        self.mmse_resampler_xx_0_0.set_resamp_ratio(self.frac_decim)
 
     def get_file(self):
         return self.file
@@ -271,6 +303,7 @@ class lora_rx(gr.top_block, Qt.QWidget):
     def set_chan_margin(self, chan_margin):
         self.chan_margin = chan_margin
         self.low_pass_filter_0.set_taps(firdes.low_pass(200, self.RF_samp_rate, (self.chan_bw + self.chan_margin)/2, (self.chan_bw + self.chan_margin)/8, firdes.WIN_HAMMING, 6.76))
+        self.low_pass_filter_0_0.set_taps(firdes.low_pass(200, self.RF_samp_rate, (self.chan_bw + self.chan_margin)/2, (self.chan_bw + self.chan_margin)/8, firdes.WIN_HAMMING, 6.76))
 
     def get_chan_freq(self):
         return self.chan_freq

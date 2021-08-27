@@ -36,7 +36,8 @@ GR_PYTHON_INSTALL(
     preamble_detect_test.py
     weak_index.py
     weak_test1.py
-    weak_test1.py DESTINATION ${GR_PYTHON_DIR}/loraGS
+    weak_test1.py
+    add2.py DESTINATION ${GR_PYTHON_DIR}/loraGS
 )
 
 ########################################################################

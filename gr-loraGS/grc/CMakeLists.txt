@@ -23,5 +23,6 @@ install(FILES
     loraGS_preamble_detect_test.block.yml
     loraGS_weak_index.block.yml
     loraGS_weak_test1.block.yml
-    loraGS_weak_test1.block.yml DESTINATION share/gnuradio/grc/blocks
+    loraGS_weak_test1.block.yml
+    loraGS_add2.block.yml DESTINATION share/gnuradio/grc/blocks
 )
