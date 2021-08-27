@@ -33,7 +33,7 @@ class combine_signal(gr.sync_block):
     def __init__(self, sf, preamble_length):
         gr.sync_block.__init__(self,
             name="combine_signal",
-            in_sig=[numpy.complex64],
+            in_sig=[numpy.complex64, numpy.complex64],
             out_sig=[numpy.complex64])
 
         self.M = int(2**sf)
@@ -66,7 +66,7 @@ class combine_signal(gr.sync_block):
         in0 = input_items[0]
         in1 = input_items[1]
         out = output_items[0]
-        # self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
+        self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
 
         if in0[0] != 0 or in1[0] != 0:
             # signal combine
@@ -83,7 +83,7 @@ class combine_signal(gr.sync_block):
             combine_signal_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
             combine_signal_fft_abs = numpy.abs(combine_signal_fft)
 
-            description4 = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/combine_abs%d.png" %(self.image_count4)
+            description4 = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/combine_abs%d.png" %(self.image_count)
             max_combine_mag = numpy.max(combine_signal_fft_abs)
             max_combine_bin = numpy.argmax(combine_signal_fft_abs)
             self.draw_graph(combine_signal_fft_abs, description4, max_combine_mag, max_combine_bin)
