@@ -58,7 +58,7 @@ class weak_lora_detect(gr.sync_block):
 
         # for sending
         self.sending_mode = False
-        self.sending_size = 10 * self.M
+        self.sending_size = 8 * self.M
 
         # for drawing
         self.image_count = 0
@@ -241,8 +241,10 @@ class weak_lora_detect(gr.sync_block):
         # send
         if(self.sending_mode):
             # output_items[0][:] = self.signal_buffer[-self.sending_size :]
-            output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
+            # output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
+            output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.M * self.preamble_len]
         else:
-            output_items[0][:] = numpy.random.normal(size=self.sending_size)
+            # output_items[0][:] = numpy.random.normal(size=self.sending_size)
+            output_items[0][:] = numpy.zeros(self.sending_size, dtype=numpy.complex64)
         self.sending_mode = False
         return len(output_items[0])

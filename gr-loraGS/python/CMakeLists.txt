@@ -34,7 +34,8 @@ GR_PYTHON_INSTALL(
     __init__.py
     lora_preamble_detect.py
     preamble_detect_test.py
-    weak_lora_detect.py DESTINATION ${GR_PYTHON_DIR}/loraGS
+    weak_lora_detect.py
+    combine_signal.py DESTINATION ${GR_PYTHON_DIR}/loraGS
 )
 
 ########################################################################
