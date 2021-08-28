@@ -119,18 +119,13 @@ class weak_lora_detect(gr.sync_block):
         # ----------------- drawing ------------------
         offset_ffted = numpy.fft.fft(offset_signal)
         # self.draw_graph(offset_ffted, '%d_1_offset_ffted' %(-frequencyOffset_bin)) 
-        # mine
-        # self.draw_graph(offset_ffted, "/home/yun/LoRa-Gateway/gr-loraGS/python/image/%d_1_offset_ffted" % (-frequencyOffset_bin))
 
         dechirped_origin_ffted = numpy.fft.fft(self.signal_buffer[signal_index:signal_index + self.M * 8]*self.dechirp_8)
         # self.draw_graph(abs(dechirped_origin_ffted), '%d_2_dechirped_origin_ffted' %(-frequencyOffset_bin))
-        # mine
-        # self.draw_graph(abs(dechirped_origin_ffted) , "/home/yun/LoRa-Gateway/gr-loraGS/python/image/%d_2_dechirped_origin_ffted" %(-frequencyOffset_bin))
 
         dechirped_adjusted_ffted = numpy.fft.fft(dechirped_adjusted_signal)
         # self.draw_graph(abs(dechirped_adjusted_ffted), '%d_3_dechirped_adjusted_ffted' %(-frequencyOffset_bin))
-        # mine
-        # self.draw_graph(abs(dechirped_adjusted_ffted), "/home/yun/LoRa-Gateway/gr-loraGS/python/image/%d_3_dechirped_adjusted_ffted" %(-frequencyOffset_bin))
+        
         # ----------------- !drawing ----------------- 
         adjusted_bin = numpy.argmax(numpy.abs(dechirped_adjusted_ffted))
         print("adjusted:", adjusted_bin)
@@ -148,7 +143,7 @@ class weak_lora_detect(gr.sync_block):
         for i in range(8):
             plt.plot(channel_est[i*self.M : (i+1)*self.M])
             # mine
-            plt.savefig("/home/yun/LoRa-Gateway/gr-loraGS/python/image/est-%d-%d.png" %(self.image_count, i))
+            plt.savefig("est-%d-%d.png" %(self.image_count, i))
             plt.clf()
 
     def detect_preamble(self):
@@ -250,7 +245,7 @@ class weak_lora_detect(gr.sync_block):
         if(self.sending_mode):
             # output_items[0][:] = self.signal_buffer[-self.sending_size :]
             # output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
-            output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.M * self.preamble_len]
+            output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
         else:
             # output_items[0][:] = numpy.random.normal(size=self.sending_size)
             output_items[0][:] = numpy.zeros(self.sending_size, dtype=numpy.complex64)

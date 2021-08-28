@@ -83,7 +83,7 @@ class combine_signal(gr.sync_block):
             combine_signal_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
             combine_signal_fft_abs = numpy.abs(combine_signal_fft)
 
-            description4 = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/combine_abs%d.png" %(self.image_count)
+            description4 = "combine_abs%d.png" %(self.image_count)
             max_combine_mag = numpy.max(combine_signal_fft_abs)
             max_combine_bin = numpy.argmax(combine_signal_fft_abs)
             self.draw_graph(combine_signal_fft_abs, description4, max_combine_mag, max_combine_bin)
