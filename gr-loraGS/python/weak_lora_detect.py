@@ -25,6 +25,8 @@ from gnuradio import gr
 from lora2 import css_demod_algo
 import matplotlib.pyplot as plt
 
+from pymongo import MongoClient
+
 class weak_lora_detect(gr.sync_block):
     """
     docstring for block weak_lora_detect

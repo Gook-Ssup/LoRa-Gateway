@@ -8,3 +8,7 @@
 ![broad](./images/broad.png)
 ![detail](./images/detail.png)
 
+## Install Python modules
+```
+pip install -r requirements.txt
+```
