@@ -53,7 +53,7 @@ class combine_signal(gr.sync_block):
 
         # draw
         self.image_count = 1
-        
+        # self.count = 0
         self.set_output_multiple(self.sending_size)
 
     def draw_graph(self, graph, description, mag, bin):
