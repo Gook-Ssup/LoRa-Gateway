@@ -79,6 +79,14 @@ class weak_lora_detect(gr.sync_block):
             self.buffer_meta = [dict() for i in range(0, 5)]
         # ------------------------ !for checking ----------------------------------
 
+        # DB
+        self.client = MongoClient('localhost', 27018)
+        self.db = self.client['lora']
+        self.collection = self.db['packets']
+        print(self.db)
+        print(self.collection)
+        #
+
         self.set_output_multiple(self.sending_size)
  
 
