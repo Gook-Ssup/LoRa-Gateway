@@ -26,6 +26,7 @@ from lora2 import css_demod_algo
 import matplotlib.pyplot as plt
 
 from pymongo import MongoClient
+import datetime
 
 class weak_lora_detect(gr.sync_block):
     """
@@ -79,16 +80,14 @@ class weak_lora_detect(gr.sync_block):
             self.buffer_meta = [dict() for i in range(0, 5)]
         # ------------------------ !for checking ----------------------------------
 
-        # DB
+        # --------------------------------------------- DB
+        self.register_db = False
         self.client = MongoClient('localhost', 27018)
-        self.db = self.client['lora']
-        self.collection = self.db['packets']
-        print(self.db)
-        print(self.collection)
-        #
+        self.db = self.client['Lora']
+        self.signals = self.db['signals']
+        # --------------------------------------------- !DB
 
         self.set_output_multiple(self.sending_size)
- 
 
     def find_maximum(self):
         max_index = 0
@@ -188,6 +187,27 @@ class weak_lora_detect(gr.sync_block):
             return len(output_items[0])
         # else
         n_syms = signal_size//self.M
+
+        # DB Test
+
+        if( not self.register_db ):
+            print(self.signal_buffer[-self.sending_size:])
+            print(self.signal_buffer[-self.sending_size:].real)
+            print(self.signal_buffer[-self.sending_size:].imag)
+            # print(self.signal_buffer[-self.sending_size:][real_part])
+            # print(self.signal_buffer[-self.sending_size:][imag_part])
+            signal = {
+                "gateway": "What the",
+                "sample_rate": 125000,
+                "length": self.sending_size,
+                "time": datetime.datetime.utcnow(),
+                "real": self.signal_buffer[-self.sending_size:].real.tolist(),
+                "imag": self.signal_buffer[-self.sending_size:].imag.tolist()
+            }
+            signal_id = self.signals.insert_one(signal).inserted_id
+            print(signal_id)
+            self.register_db = True
+        #
  
         for i in range(0, n_syms):
             ## save energe buffer
