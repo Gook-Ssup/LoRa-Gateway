@@ -32,12 +32,13 @@ class weak_lora_detect(gr.sync_block):
     """
     docstring for block weak_lora_detect
     """
-    def __init__(self, sf, threshold, preamble_len):
+    def __init__(self, gatewayName, sf, threshold, preamble_len):
         gr.sync_block.__init__(self,
             name="weak_lora_detect",
             in_sig=[numpy.complex64],
             out_sig=[numpy.complex64])
 
+        self.gatewayName = gatewayName
         self.M = int(2**sf)
         self.preamble_len = preamble_len
         self.thres = threshold
@@ -174,6 +175,20 @@ class weak_lora_detect(gr.sync_block):
         plt.savefig(description)
         plt.clf()
 
+    def save_signal_to_db(self):
+        signal = {
+            "gateway": self.gatewayName,
+            "sample_rate": 125000,
+            "length": self.sending_size,
+            "time": datetime.datetime.utcnow(),
+            "real": self.signal_buffer[self.signal_timing_index : self.signal_timing_index + self.sending_size].real.tolist(),
+            "imag": self.signal_buffer[self.signal_timing_index : self.signal_timing_index + self.sending_size].imag.tolist()
+        }
+        signal_id = self.signals.insert_one(signal).inserted_id
+        print("Save(%s): %s" %(self.gatewayName, signal_id))
+        # self.register_db = True
+        #
+
     def work(self, input_items, output_items):
         signal_size = len(input_items[0])
 
@@ -187,27 +202,6 @@ class weak_lora_detect(gr.sync_block):
             return len(output_items[0])
         # else
         n_syms = signal_size//self.M
-
-        # DB Test
-
-        if( not self.register_db ):
-            print(self.signal_buffer[-self.sending_size:])
-            print(self.signal_buffer[-self.sending_size:].real)
-            print(self.signal_buffer[-self.sending_size:].imag)
-            # print(self.signal_buffer[-self.sending_size:][real_part])
-            # print(self.signal_buffer[-self.sending_size:][imag_part])
-            signal = {
-                "gateway": "What the",
-                "sample_rate": 125000,
-                "length": self.sending_size,
-                "time": datetime.datetime.utcnow(),
-                "real": self.signal_buffer[-self.sending_size:].real.tolist(),
-                "imag": self.signal_buffer[-self.sending_size:].imag.tolist()
-            }
-            signal_id = self.signals.insert_one(signal).inserted_id
-            print(signal_id)
-            self.register_db = True
-        #
  
         for i in range(0, n_syms):
             ## save energe buffer
@@ -241,6 +235,7 @@ class weak_lora_detect(gr.sync_block):
                             self.signal_timing_index = self.M * (max_index - 1 - 8) + max_index_detail
                             self.set_frequencyOffset(self.signal_timing_index, max_bin_detail)
                             self.sending_mode = True
+                            self.save_signal_to_db()
             else:
                 pass
 

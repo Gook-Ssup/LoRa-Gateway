@@ -7,7 +7,7 @@
 # GNU Radio Python Flow Graph
 # Title: Not titled yet
 # Author: gnuradio-inc
-# GNU Radio version: v3.8.3.1-6-g896b7138
+# GNU Radio version: 3.8.3.1
 
 from distutils.version import StrictVersion
 
@@ -92,6 +92,23 @@ class charm_test(gr.top_block, Qt.QWidget):
         self.uhd_usrp_source_0.set_antenna('TX/RX', 0)
         self.uhd_usrp_source_0.set_samp_rate(samp_rate)
         self.uhd_usrp_source_0.set_time_unknown_pps(uhd.time_spec())
+        self.qtgui_sink_x_0_0_2 = qtgui.sink_c(
+            1024, #fftsize
+            firdes.WIN_BLACKMAN_hARRIS, #wintype
+            0, #fc
+            samp_rate, #bw
+            'charm detect', #name
+            True, #plotfreq
+            True, #plotwaterfall
+            True, #plottime
+            True #plotconst
+        )
+        self.qtgui_sink_x_0_0_2.set_update_time(1.0/10)
+        self._qtgui_sink_x_0_0_2_win = sip.wrapinstance(self.qtgui_sink_x_0_0_2.pyqwidget(), Qt.QWidget)
+
+        self.qtgui_sink_x_0_0_2.enable_rf_freq(False)
+
+        self.top_layout.addWidget(self._qtgui_sink_x_0_0_2_win)
         self.qtgui_sink_x_0_0 = qtgui.sink_c(
             1024, #fftsize
             firdes.WIN_BLACKMAN_hARRIS, #wintype
@@ -109,18 +126,21 @@ class charm_test(gr.top_block, Qt.QWidget):
         self.qtgui_sink_x_0_0.enable_rf_freq(False)
 
         self.top_layout.addWidget(self._qtgui_sink_x_0_0_win)
-        self.loraGS_weak_lora_detect_0 = loraGS.weak_lora_detect(10, 1e-4, 8)
-        self.loraGS_preamble_detect_test_0 = loraGS.preamble_detect_test(10, 8, 1e-4)
+        self.loraGS_weak_lora_detect_1_0 = loraGS.weak_lora_detect('Lab2', 10, 1e-4, 8)
+        self.loraGS_weak_lora_detect_1 = loraGS.weak_lora_detect('Lab1', 10, 1e-4, 8)
+        self.blocks_throttle_0_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
         self.blocks_throttle_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
 
 
         ##################################################
         # Connections
         ##################################################
-        self.connect((self.blocks_throttle_0, 0), (self.loraGS_preamble_detect_test_0, 0))
-        self.connect((self.loraGS_preamble_detect_test_0, 0), (self.qtgui_sink_x_0_0, 0))
-        self.connect((self.loraGS_weak_lora_detect_0, 0), (self.blocks_throttle_0, 0))
-        self.connect((self.uhd_usrp_source_0, 0), (self.loraGS_weak_lora_detect_0, 0))
+        self.connect((self.blocks_throttle_0, 0), (self.qtgui_sink_x_0_0, 0))
+        self.connect((self.blocks_throttle_0_0, 0), (self.qtgui_sink_x_0_0_2, 0))
+        self.connect((self.loraGS_weak_lora_detect_1, 0), (self.blocks_throttle_0, 0))
+        self.connect((self.loraGS_weak_lora_detect_1_0, 0), (self.blocks_throttle_0_0, 0))
+        self.connect((self.uhd_usrp_source_0, 0), (self.loraGS_weak_lora_detect_1, 0))
+        self.connect((self.uhd_usrp_source_0, 0), (self.loraGS_weak_lora_detect_1_0, 0))
 
 
     def closeEvent(self, event):
@@ -134,7 +154,9 @@ class charm_test(gr.top_block, Qt.QWidget):
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.blocks_throttle_0.set_sample_rate(self.samp_rate)
+        self.blocks_throttle_0_0.set_sample_rate(self.samp_rate)
         self.qtgui_sink_x_0_0.set_frequency_range(0, self.samp_rate)
+        self.qtgui_sink_x_0_0_2.set_frequency_range(0, self.samp_rate)
         self.uhd_usrp_source_0.set_samp_rate(self.samp_rate)
 
 
