@@ -24,6 +24,8 @@ import numpy
 from gnuradio import gr
 from lora2 import css_demod_algo
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+import time
 
 from pymongo import MongoClient
 
@@ -31,7 +33,7 @@ class weak_lora_detect(gr.sync_block):
     """
     docstring for block weak_lora_detect
     """
-    def __init__(self, sf, threshold, preamble_len):
+    def __init__(self, gatewayName, sf, threshold, preamble_len):
         gr.sync_block.__init__(self,
             name="weak_lora_detect",
             in_sig=[numpy.complex64],
@@ -40,6 +42,7 @@ class weak_lora_detect(gr.sync_block):
         self.M = int(2**sf)
         self.preamble_len = preamble_len
         self.thres = threshold
+        self.gatewayName = gatewayName
 
         # for charm
         self.max_chunk_count = 40
@@ -52,6 +55,7 @@ class weak_lora_detect(gr.sync_block):
         self.increase_count = 0
         self.decrease_count = 0
         self.enough_increase = False
+        self.index_signal = 0
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
@@ -167,6 +171,22 @@ class weak_lora_detect(gr.sync_block):
         plt.savefig(description)
         plt.clf()
 
+    def draw_subplot(self, graph, num_mag, num_bin, gatewayNum):
+        description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/"
+        fig = plt.figure()
+        ax = fig.add_subplot(2,1,1)
+        if gatewayNum == 1:
+            # ax = fig.add_subplot(2,1,1)
+            ax.plot(graph,'r-',lw=1)
+            description += 'in0-%d.png' %(self.image_count)
+        else:
+            # ax = fig.add_subplot(2,1,2)
+            ax.plot(graph,'g-',lw=1)
+            description += 'in1-%d.png' %(self.image_count)
+        ax.set_title("index: %d   mag: %.2f   bin: %d" %(self.index_signal, num_mag, num_bin))
+        fig.tight_layout()
+        fig.savefig(description)
+        
     def work(self, input_items, output_items):
         signal_size = len(input_items[0])
 
@@ -248,8 +268,22 @@ class weak_lora_detect(gr.sync_block):
             # output_items[0][:] = self.signal_buffer[-self.sending_size :]
             # output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
             output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
+            if self.gatewayName == 1:
+                description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/gateway_in0-%d.png" %(self.image_count)
+            elif self.gatewayName == 2:
+                description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/gateway_in1-%d.png" %(self.image_count)
+
+            dechirped_output = output_items[0][0:self.M * self.preamble_len] * self.dechirp_8
+            dechirped_output_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_output))
+            dechirped_output_fft_abs = numpy.abs(dechirped_output_fft)
+            output_mag = numpy.max(dechirped_output_fft_abs)
+            output_bin = numpy.argmax(dechirped_output_fft_abs)
+            
+            self.draw_subplot(dechirped_output_fft_abs,output_mag,output_bin,self.gatewayName)
+            
         else:
             # output_items[0][:] = numpy.random.normal(size=self.sending_size)
             output_items[0][:] = numpy.zeros(self.sending_size, dtype=numpy.complex64)
         self.sending_mode = False
+        self.index_signal += 1
         return len(output_items[0])

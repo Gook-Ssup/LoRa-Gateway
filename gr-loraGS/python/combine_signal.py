@@ -23,6 +23,7 @@
 import numpy
 from gnuradio import gr
 import sys
+import time
 
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
@@ -61,21 +62,36 @@ class combine_signal(gr.sync_block):
         self.image_count = 1
         self.image_count2 = 1
         self.image_count3 = 1
-        self.count_in0 = 0
-        self.count_in1 = 0
+        # self.count = 0
+        self.index_signal = 1
+        self.input_in0 = False
+        self.input_in1 = False
         self.set_output_multiple(self.sending_size)
         
 
-    def draw_graph(self, graph, description, mag, bin):
+    def draw_graph(self, graph, description, mag, bin2):
         plt.plot(graph)
-        plt.title("mag: %.2f    bin: %d" %(mag,bin))
         plt.savefig(description)
         plt.clf()
 
-    def draw_graph_origin(self, graph, description):
-        plt.plot(graph)
-        plt.savefig(description)
-        plt.clf()
+    def draw_subplot(self, graph, num_mag, num_bin, gatewayNum):
+        description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/"
+        fig = plt.figure()
+        ax = fig.add_subplot(2,1,1)
+        if gatewayNum == 1:
+            # ax = fig.add_subplot(2,1,1)
+            ax.plot(graph,'r-',lw=1)
+            description += 'input0-%d.png' %(self.image_count)
+        elif gatewayNum == 2:
+            # ax = fig.add_subplot(2,1,2)
+            ax.plot(graph,'g-',lw=1)
+            description += 'input1-%d.png' %(self.image_count2)
+        else:
+            ax.plot(graph,'b-',lw=1)
+            description += 'combine-%d.png' %(self.image_count3)
+        ax.set_title("index: %d   mag: %.2f   bin: %d" %(self.index_signal,num_mag, num_bin))
+        fig.tight_layout()
+        fig.savefig(description)
 
     def write_signal_mag(self, signal, combine):
         sys.stdout = open('/home/yun/Desktop/output.txt', 'a')
@@ -95,54 +111,62 @@ class combine_signal(gr.sync_block):
         if in0[0] != 0 or in1[0] != 0:
             # signal combine
             if in0[0] != 0:
+                # channel multiple signal
                 channel_est = in0[:self.combine_size] / self.upchirp_8
                 conj_h = numpy.conj(channel_est)
                 self.result_h = conj_h * in0[:self.combine_size]
                 self.combine_signal += self.result_h
-                self.count += 1
-                description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/signal0-%d.png" %(self.image_count)
+
+                # Find in0 signal FFT & abs
                 in0_signal = in0 * self.dechirp_8
                 combine_in0_fft = numpy.fft.fftshift(numpy.fft.fft(in0_signal))
                 combine_in0_fft_abs = numpy.abs(combine_in0_fft)
                 in0_mag = numpy.max(combine_in0_fft_abs)
                 in0_bin = numpy.argmax(combine_in0_fft_abs)
                 
-                self.draw_graph(combine_in0_fft_abs,description,in0_mag,in0_bin)
+                self.draw_subplot(combine_in0_fft_abs,in0_mag,in0_bin,1)
                 self.image_count += 1
+                self.input_in0 = True
                 
             if in1[0] != 0:
+                # channel multiple signal
                 channel_est = in1[:self.combine_size] / self.upchirp_8
                 conj_h = numpy.conj(channel_est)
                 self.result_h = conj_h * in1[:self.combine_size]
                 self.combine_signal += self.result_h
-                self.count += 1
-                description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/signal1-%d.png" %(self.image_count2)
+                
+                # Find in1 signal FFT & abs
                 in1_signal = in1 * self.dechirp_8
                 combine_in1_fft = numpy.fft.fftshift(numpy.fft.fft(in1_signal))
                 combine_in1_fft_abs = numpy.abs(combine_in1_fft)
                 in1_mag = numpy.max(combine_in1_fft_abs)
                 in1_bin = numpy.argmax(combine_in1_fft_abs)
                 
-                self.draw_graph(combine_in1_fft_abs,description,in1_mag,in1_bin)
+                self.draw_subplot(combine_in1_fft_abs,in1_mag,in1_bin,2)
                 self.image_count2 += 1
+                self.input_in1 = True
                 
-            if self.count == 2:
+            # if self.count == 2:
+            if self.input_in0 == True and self.input_in1 == True:
                 # self.combine_signal += self.result_h
                 dechirped_combine_signal = self.combine_signal * self.dechirp_8
                 combine_signal_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
                 combine_signal_fft_abs = numpy.abs(combine_signal_fft)
 
-                description4 = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/combine-%d.png" %(self.image_count3)
                 max_combine_mag = numpy.max(combine_signal_fft_abs)
                 max_combine_bin = numpy.argmax(combine_signal_fft_abs)
                 
-                self.draw_graph(combine_signal_fft_abs, description4, max_combine_mag, max_combine_bin)
+                # self.draw_subplot(combine_signal_fft_abs,max_combine_mag,max_combine_bin,3)
                 
                 self.image_count3 += 1
                 
-                self.count = 0
+                # self.count = 0
                 self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
+                self.input_in0 = False
+                self.input_in1 = False
 
+        
+        self.index_signal += 1
         out[:] = in0[:]
         return len(output_items[0])
 
