@@ -14,7 +14,7 @@ templates:
 parameters:
 - id: gatewayName
   label: Gateway Name
-  dtype: int
+  dtype: string
 - id: sf
   label: Spreading Factor
   dtype: int
