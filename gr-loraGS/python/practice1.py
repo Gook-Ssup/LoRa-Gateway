@@ -1,18 +1,29 @@
+import sys
 import numpy
 import matplotlib.pyplot as plt
 
-k = numpy.linspace(0.0, 1024*8 -1, 1024*8)
-arr1 = numpy.zeros(1024*8, dtype=numpy.float) -1
-# arr1 = None
-arr1[0 : 1024] = k[0:1024]
-for i in range(8):
-    arr1[i*1024 : (i+1)*1024] = k[i*1024 : (i+1)*1024]
-    plt.plot(arr1[i * 1024 : (i+1)*1024])
-    # plt.show()
-    plt.savefig("/home/yun/test%d.png" %(i + 1))
-    plt.clf()
-    
-arr2 = numpy.zeros(1024, dtype=numpy.float) -1
-arr2[0 : 1024] = arr1[1*1024 : 2*1024]
-# plt.plot(arr2)
-# plt.show()
+k1 = numpy.linspace(0.0, 9.0, 10)
+
+description = "/home/yun/Desktop/practice/"
+
+fig = plt.figure()
+# add_subplot : #, 1, sequence
+ax = fig.add_subplot(2,1,1)
+ax.plot(k1,'r-',lw=1)
+ax.set_title('H1')
+# Draw Tile
+# ax.grid(True)
+
+# Y : sin 4 pi x
+# ax.set_ylabel(r'$sin(4 \pi x)$')
+
+# plt.axis : [-x,+x,-y,+y] range
+# plt.axis([0,1,-1.5,1.5])
+
+ax = fig.add_subplot(2,1,2)
+ax.plot(k1,'b-',lw=1)
+ax.set_title('H2')
+fig.tight_layout()
+
+fig.savefig(description + 'practice1.png')
+
