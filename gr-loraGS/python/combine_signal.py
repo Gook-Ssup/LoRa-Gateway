@@ -44,7 +44,6 @@ class combine_signal(gr.sync_block):
         self.sending_size = self.M * 8
         self.combine_size = self.M * 8
         self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
-        self.check_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
         self.result_h = numpy.zeros(self.combine_size, dtype=numpy.complex64)
 
         # self.signal0 = numpy.zeros(self.combine_size, dtype=numpy.complex64)
@@ -64,6 +63,8 @@ class combine_signal(gr.sync_block):
         self.image_count3 = 1
         # self.count = 0
         self.index_signal = 1
+        self.index_in0 = 0
+        self.index_in1 = 0
         self.input_in0 = False
         self.input_in1 = False
         self.set_output_multiple(self.sending_size)
@@ -106,8 +107,6 @@ class combine_signal(gr.sync_block):
         in1 = input_items[1]
         out = output_items[0]
     
-        # sys.stdout = open('/home/yun/Desktop/output_signal_in0.txt', 'a')
-
         if in0[0] != 0 or in1[0] != 0:
             # signal combine
             if in0[0] != 0:
@@ -125,7 +124,9 @@ class combine_signal(gr.sync_block):
                 in0_bin = numpy.argmax(combine_in0_fft_abs)
                 
                 self.draw_subplot(combine_in0_fft_abs,in0_mag,in0_bin,1)
+                numpy.savetxt('/home/gnuradio-inc/Yun/text/in0_signal-%d.txt'%(self.image_count), in0_signal.view(float).reshape(-1,2))
                 self.image_count += 1
+                self.index_in0 = self.index_signal
                 self.input_in0 = True
                 
             if in1[0] != 0:
@@ -143,28 +144,35 @@ class combine_signal(gr.sync_block):
                 in1_bin = numpy.argmax(combine_in1_fft_abs)
                 
                 self.draw_subplot(combine_in1_fft_abs,in1_mag,in1_bin,2)
+                numpy.savetxt('/home/gnuradio-inc/Yun/text/in1_signal-%d.txt'%(self.image_count2), in1_signal.view(float).reshape(-1,2))
                 self.image_count2 += 1
+                self.index_in1 = self.index_signal
                 self.input_in1 = True
                 
             # if self.count == 2:
             if self.input_in0 == True and self.input_in1 == True:
-                # self.combine_signal += self.result_h
-                dechirped_combine_signal = self.combine_signal * self.dechirp_8
-                combine_signal_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
-                combine_signal_fft_abs = numpy.abs(combine_signal_fft)
+                if numpy.abs(self.index_in0 - self.index_in1) < 10:
+                    print("index_in0 : ", self.index_in0)
+                    print("index_in1 : ", self.index_in1)
+                    # self.combine_signal += self.result_h
+                    dechirped_combine_signal = self.combine_signal * self.dechirp_8
+                    combine_signal_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
+                    combine_signal_fft_abs = numpy.abs(combine_signal_fft)
 
-                max_combine_mag = numpy.max(combine_signal_fft_abs)
-                max_combine_bin = numpy.argmax(combine_signal_fft_abs)
-                
-                # self.draw_subplot(combine_signal_fft_abs,max_combine_mag,max_combine_bin,3)
-                
-                self.image_count3 += 1
-                
-                # self.count = 0
-                self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
-                self.input_in0 = False
-                self.input_in1 = False
-
+                    max_combine_mag = numpy.max(combine_signal_fft_abs)
+                    max_combine_bin = numpy.argmax(combine_signal_fft_abs)
+                    
+                    self.draw_subplot(combine_signal_fft_abs,max_combine_mag,max_combine_bin,3)
+                    
+                    self.image_count3 += 1
+                    
+                    # self.count = 0
+                    self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
+                    self.input_in0 = False
+                    self.input_in1 = False
+                else:
+                    self.input_in0 = False
+                    self.input_in1 = False
         
         self.index_signal += 1
         out[:] = in0[:]
