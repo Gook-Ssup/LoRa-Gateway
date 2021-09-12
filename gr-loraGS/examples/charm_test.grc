@@ -63,6 +63,25 @@ blocks:
     coordinate: [552, 308.0]
     rotation: 0
     state: enabled
+- name: blocks_throttle_0_0
+  id: blocks_throttle
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    ignoretag: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samples_per_second: samp_rate
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [592, 212.0]
+    rotation: 0
+    state: enabled
 - name: loraGS_lora_preamble_detect_0
   id: loraGS_lora_preamble_detect
   parameters:
@@ -78,33 +97,16 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [352, 132.0]
+    coordinate: [352, 44.0]
     rotation: 0
     state: disabled
-- name: loraGS_preamble_detect_test_0
-  id: loraGS_preamble_detect_test
-  parameters:
-    SF: '10'
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    preamble_len: '8'
-    thres: 1e-4
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [728, 292.0]
-    rotation: 0
-    state: enabled
-- name: loraGS_weak_lora_detect_0
+- name: loraGS_weak_lora_detect_1
   id: loraGS_weak_lora_detect
   parameters:
     affinity: ''
     alias: ''
     comment: ''
+    gatewayName: Lab1
     maxoutbuf: '0'
     minoutbuf: '0'
     preamble_len: '8'
@@ -114,9 +116,28 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [352, 292.0]
+    coordinate: [360, 292.0]
     rotation: 0
-    state: enabled
+    state: true
+- name: loraGS_weak_lora_detect_1_0
+  id: loraGS_weak_lora_detect
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    gatewayName: Lab2
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    preamble_len: '8'
+    sf: '10'
+    threshold: 1e-4
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [360, 180.0]
+    rotation: 0
+    state: true
 - name: qtgui_sink_x_0_0
   id: qtgui_sink_x
   parameters:
@@ -143,7 +164,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [976, 276.0]
+    coordinate: [824, 276.0]
     rotation: 0
     state: enabled
 - name: qtgui_sink_x_0_0_0
@@ -172,7 +193,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [656, 148.0]
+    coordinate: [616, 20.0]
     rotation: 0
     state: disabled
 - name: qtgui_sink_x_0_0_1
@@ -204,6 +225,35 @@ blocks:
     coordinate: [352, 388.0]
     rotation: 0
     state: disabled
+- name: qtgui_sink_x_0_0_2
+  id: qtgui_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    bw: samp_rate
+    comment: ''
+    fc: '0'
+    fftsize: '1024'
+    gui_hint: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    name: charm detect
+    plotconst: 'True'
+    plotfreq: 'True'
+    plottime: 'True'
+    plotwaterfall: 'True'
+    rate: '10'
+    showports: 'False'
+    showrf: 'False'
+    type: complex
+    wintype: firdes.WIN_BLACKMAN_hARRIS
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [856, 124.0]
+    rotation: 0
+    state: enabled
 - name: uhd_usrp_source_0
   id: uhd_usrp_source
   parameters:
@@ -578,12 +628,14 @@ blocks:
     state: true
 
 connections:
-- [blocks_throttle_0, '0', loraGS_preamble_detect_test_0, '0']
+- [blocks_throttle_0, '0', qtgui_sink_x_0_0, '0']
+- [blocks_throttle_0_0, '0', qtgui_sink_x_0_0_2, '0']
 - [loraGS_lora_preamble_detect_0, '0', qtgui_sink_x_0_0_0, '0']
-- [loraGS_preamble_detect_test_0, '0', qtgui_sink_x_0_0, '0']
-- [loraGS_weak_lora_detect_0, '0', blocks_throttle_0, '0']
+- [loraGS_weak_lora_detect_1, '0', blocks_throttle_0, '0']
+- [loraGS_weak_lora_detect_1_0, '0', blocks_throttle_0_0, '0']
 - [uhd_usrp_source_0, '0', loraGS_lora_preamble_detect_0, '0']
-- [uhd_usrp_source_0, '0', loraGS_weak_lora_detect_0, '0']
+- [uhd_usrp_source_0, '0', loraGS_weak_lora_detect_1, '0']
+- [uhd_usrp_source_0, '0', loraGS_weak_lora_detect_1_0, '0']
 - [uhd_usrp_source_0, '0', qtgui_sink_x_0_0_1, '0']
 
 metadata:

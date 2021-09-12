@@ -40,6 +40,7 @@ class weak_lora_detect(gr.sync_block):
             in_sig=[numpy.complex64],
             out_sig=[numpy.complex64])
 
+        self.gatewayName = gatewayName
         self.M = int(2**sf)
         self.preamble_len = preamble_len
         self.thres = threshold
@@ -92,7 +93,6 @@ class weak_lora_detect(gr.sync_block):
         # --------------------------------------------- !DB
 
         self.set_output_multiple(self.sending_size)
- 
 
     def find_maximum(self):
         max_index = 0
@@ -193,22 +193,7 @@ class weak_lora_detect(gr.sync_block):
         # self.register_db = True
         #
 
-    def draw_subplot(self, graph, num_mag, num_bin, gatewayNum):
-        description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/"
-        fig = plt.figure()
-        ax = fig.add_subplot(2,1,1)
-        if gatewayNum == "1":
-            # ax = fig.add_subplot(2,1,1)
-            ax.plot(graph,'r-',lw=1)
-            description += 'in0-%d.png' %(self.image_count)
-        else:
-            # ax = fig.add_subplot(2,1,2)
-            ax.plot(graph,'g-',lw=1)
-            description += 'in1-%d.png' %(self.image_count)
-        ax.set_title("index: %d   mag: %.2f   bin: %d" %(self.index_signal, num_mag, num_bin))
-        fig.tight_layout()
-        fig.savefig(description)
-        
+
     def work(self, input_items, output_items):
         signal_size = len(input_items[0])
 
@@ -255,6 +240,7 @@ class weak_lora_detect(gr.sync_block):
                             self.signal_timing_index = self.M * (max_index - 1 - 8) + max_index_detail
                             self.set_frequencyOffset(self.signal_timing_index, max_bin_detail)
                             self.sending_mode = True
+                            self.save_signal_to_db()
             else:
                 pass
 
