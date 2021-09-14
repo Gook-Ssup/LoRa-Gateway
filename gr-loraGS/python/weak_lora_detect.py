@@ -185,6 +185,8 @@ class weak_lora_detect(gr.sync_block):
             "sample_rate": 125000,
             "length": self.sending_size,
             "time": datetime.datetime.utcnow(),
+            "bin_num": self.max_bin_detail.item(),
+            "mag_max": self.max_mag.item(),
             "real": self.signal_buffer[self.signal_timing_index : self.signal_timing_index + self.sending_size].real.tolist(),
             "imag": self.signal_buffer[self.signal_timing_index : self.signal_timing_index + self.sending_size].imag.tolist()
         }
@@ -236,9 +238,9 @@ class weak_lora_detect(gr.sync_block):
                             # self.draw_graph(self.energe_buffer, "%d-broad" %(self.image_count))
                             print("detect lora preamble (with charm)")
                             max_index, energe = self.find_maximum()
-                            max_index_detail, max_bin_detail = self.find_maximum_detail(max_index - (n_syms - i - 1))
+                            max_index_detail, self.max_bin_detail = self.find_maximum_detail(max_index - (n_syms - i - 1))
                             self.signal_timing_index = self.M * (max_index - 1 - 8) + max_index_detail
-                            self.set_frequencyOffset(self.signal_timing_index, max_bin_detail)
+                            self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
                             self.sending_mode = True
                             self.save_signal_to_db()
             else:
