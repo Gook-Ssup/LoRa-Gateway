@@ -111,9 +111,9 @@ class weak_lora_detect(gr.sync_block):
                 self.bin_buffer_detail[i] = numpy.argmax(numpy.abs(dechirped_signals_fft))
             except:
                 print(self.M * (k - 1) + i - self.M *8, self.M * (k - 1) + i)
-        self.draw_graph(self.energe_buffer_detail, "detail-%d" %(self.image_count))
-        max_index = numpy.argmax(numpy.abs(self.energe_buffer_detail))
-        return max_index, self.bin_buffer_detail[max_index]
+        # self.draw_graph(self.energe_buffer_detail, "detail-%d" %(self.image_count))
+        max_index_detail = numpy.argmax(numpy.abs(self.energe_buffer_detail))
+        return max_index_detail, self.bin_buffer_detail[max_index_detail]
 
     def set_frequencyOffset(self, signal_index, bin_number):
         # find frequency offset
@@ -202,13 +202,18 @@ class weak_lora_detect(gr.sync_block):
         plt.savefig(description)
         plt.clf()
 
-    def draw_plot_specto(self, plot_graph, specto_graph, description):
+    def draw_specgram(self, graph, description):
+        plt.specgram(graph, Fs=1)
+        plt.savefig(description)
+        plt.clf()
+
+    def draw_plot_specto(self, description):
         plt.subplot(3,1,1)
-        plt.plot(plot_graph)
+        plt.plot(self.energe_buffer)
         plt.subplot(3,1,2)
-        plt.specgram(specto_graph, Fs=1)
+        plt.specgram(self.signal_buffer, Fs=1)
         plt.subplot(3,1,3)
-        plt.specgram(self.dechirp_8, Fs=1)
+        plt.plot(self.bin_buffer)
         plt.savefig(description)
         plt.clf()
 
@@ -252,7 +257,7 @@ class weak_lora_detect(gr.sync_block):
             self.bin_buffer = numpy.roll(self.bin_buffer, -1)
             self.bin_buffer[-1] = numpy.argmax(numpy.abs(dechirped_signals_fft))
         
-        
+        for i in range(0, n_syms):
             ## check
             if(self.energe_buffer[self.check_index - 1] > self.energe_buffer[self.check_index - 2]):
                 self.decrease_count = 0
@@ -268,19 +273,17 @@ class weak_lora_detect(gr.sync_block):
                         self.enough_increase = False
                         if(self.max_mag > self.energe_buffer[0] * 5):
                             self.image_count += 1
-                            # self.draw_graph(self.energe_buffer, "%d-broad" %(self.image_count))
                             print("detect lora preamble (with charm)")
-                            self.draw_plot_specto(self.energe_buffer, self.signal_buffer, "signal,buffer-%d" %self.image_count)
+                            self.draw_plot_specto("signal-energe-bin-%d" %self.image_count)
                             max_index, energe = self.find_maximum()
-                            print(max_index, energe)
-                            for buf_index, buf_mag in enumerate(self.energe_buffer):
-                                print(buf_index, ":", buf_mag)
-                            max_index_detail, self.max_bin_detail = self.find_maximum_detail(max_index - 1)
-                            self.signal_timing_index = self.M * (max_index - 1 - 8) + max_index_detail
+                            # for buf_index, buf_mag in enumerate(self.energe_buffer):
+                            #     print(buf_index, ":", buf_mag)
+                            max_index_detail, self.max_bin_detail = self.find_maximum_detail(max_index)
+                            self.signal_timing_index = self.M * (max_index - 8) + max_index_detail
                             self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
-                            # self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
+                            self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
                             self.sending_mode = True
-                            # self.save_signal_to_db()
+                            self.save_signal_to_db()
             else:
                 pass
 
