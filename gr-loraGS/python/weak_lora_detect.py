@@ -57,7 +57,10 @@ class weak_lora_detect(gr.sync_block):
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
-        self.dechirp = numpy.exp(1j*numpy.pi*k/self.M*k)
+        # self.dechirp = numpy.exp(1j*numpy.pi*k/self.M*k)
+        # self.dechirp_8 = numpy.tile(self.dechirp, 8)
+        self.dechirp = numpy.exp((1j*numpy.pi*(k*k)/self.M)-k)
+        self.dechirp = numpy.conj(self.dechirp)
         self.dechirp_8 = numpy.tile(self.dechirp, 8)
 
         # for sending
@@ -108,7 +111,7 @@ class weak_lora_detect(gr.sync_block):
                 self.bin_buffer_detail[i] = numpy.argmax(numpy.abs(dechirped_signals_fft))
             except:
                 print(self.M * (k - 1) + i - self.M *8, self.M * (k - 1) + i)
-        # self.draw_graph(self.energe_buffer_detail, "%d-detail" %(self.image_count))
+        self.draw_graph(self.energe_buffer_detail, "detail-%d" %(self.image_count))
         max_index = numpy.argmax(numpy.abs(self.energe_buffer_detail))
         return max_index, self.bin_buffer_detail[max_index]
 
@@ -141,7 +144,7 @@ class weak_lora_detect(gr.sync_block):
         print("adjusted:", adjusted_bin)
         # mine
         # self.channel_estimation()
-        self.adjust_angle()
+        # self.adjust_angle()
         return adjusted_bin
 
     def adjust_angle(self):
@@ -199,6 +202,16 @@ class weak_lora_detect(gr.sync_block):
         plt.savefig(description)
         plt.clf()
 
+    def draw_plot_specto(self, plot_graph, specto_graph, description):
+        plt.subplot(3,1,1)
+        plt.plot(plot_graph)
+        plt.subplot(3,1,2)
+        plt.specgram(specto_graph, Fs=1)
+        plt.subplot(3,1,3)
+        plt.specgram(self.dechirp_8, Fs=1)
+        plt.savefig(description)
+        plt.clf()
+
     def save_signal_to_db(self):
         signal = {
             "gateway": self.gatewayName,
@@ -238,7 +251,8 @@ class weak_lora_detect(gr.sync_block):
             self.energe_buffer[-1] = numpy.max(numpy.abs(dechirped_signals_fft))
             self.bin_buffer = numpy.roll(self.bin_buffer, -1)
             self.bin_buffer[-1] = numpy.argmax(numpy.abs(dechirped_signals_fft))
-            
+        
+        
             ## check
             if(self.energe_buffer[self.check_index - 1] > self.energe_buffer[self.check_index - 2]):
                 self.decrease_count = 0
@@ -256,12 +270,17 @@ class weak_lora_detect(gr.sync_block):
                             self.image_count += 1
                             # self.draw_graph(self.energe_buffer, "%d-broad" %(self.image_count))
                             print("detect lora preamble (with charm)")
+                            self.draw_plot_specto(self.energe_buffer, self.signal_buffer, "signal,buffer-%d" %self.image_count)
                             max_index, energe = self.find_maximum()
-                            max_index_detail, self.max_bin_detail = self.find_maximum_detail(max_index - (n_syms - i - 1))
+                            print(max_index, energe)
+                            for buf_index, buf_mag in enumerate(self.energe_buffer):
+                                print(buf_index, ":", buf_mag)
+                            max_index_detail, self.max_bin_detail = self.find_maximum_detail(max_index - 1)
                             self.signal_timing_index = self.M * (max_index - 1 - 8) + max_index_detail
-                            self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
+                            self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
+                            # self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
                             self.sending_mode = True
-                            self.save_signal_to_db()
+                            # self.save_signal_to_db()
             else:
                 pass
 
@@ -296,7 +315,8 @@ class weak_lora_detect(gr.sync_block):
         if(self.sending_mode):
             # output_items[0][:] = self.signal_buffer[-self.sending_size :]
             # output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
-            output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
+            output_items[0][:] = self.sending_signal
+            # output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
         else:
             # output_items[0][:] = numpy.random.normal(size=self.sending_size)
             output_items[0][:] = numpy.zeros(self.sending_size, dtype=numpy.complex64)
