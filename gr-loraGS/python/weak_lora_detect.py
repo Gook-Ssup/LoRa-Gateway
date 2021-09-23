@@ -25,10 +25,10 @@ from gnuradio import gr
 from lora2 import css_demod_algo
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
-import time
 
-from pymongo import MongoClient
 import datetime
+from pymongo import MongoClient
+
 
 class weak_lora_detect(gr.sync_block):
     """
@@ -44,7 +44,6 @@ class weak_lora_detect(gr.sync_block):
         self.M = int(2**sf)
         self.preamble_len = preamble_len
         self.thres = threshold
-        self.gatewayName = gatewayName
 
         # for charm
         self.max_chunk_count = 40
@@ -53,20 +52,41 @@ class weak_lora_detect(gr.sync_block):
         self.signal_index = 0
         self.energe_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.float) - 1
         self.bin_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.int) - 1
+
+        # adjusted_signal : Frequnecy Offset
+        # adjutsed_signal2 : CFO_fine & Phase Offset
+        # channel_est : Channel Estimation
+        self.adjusted_signal = numpy.zeros(self.M * self.preamble_len, dtype=numpy.complex64)
+        self.adjusted_signal2 = numpy.zeros(self.M * self.preamble_len, dtype=numpy.complex64)
+        self.channel_est = numpy.zeros(self.M * self.preamble_len, dtype=numpy.complex64)
+        
         self.max_mag = 0
         self.increase_count = 0
         self.decrease_count = 0
         self.enough_increase = False
-        self.index_signal = 0
+        self.description = "/home/gnuradio-inc/Yun/image/"
 
-        # dechirp
+        # dechirp method 1
         k = numpy.linspace(0.0, self.M-1.0, self.M)
-        self.dechirp = numpy.exp(1j*numpy.pi*k/self.M*k)
+        self.dechirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
         self.dechirp_8 = numpy.tile(self.dechirp, 8)
+
+        # dechirp method 2
+        # self.dechirp = numpy.exp((1j*numpy.pi*(k*k)/self.M))
+        # self.dechirp = numpy.conj(self.dechirp)
+        # self.dechirp_8 = numpy.tile(self.dechirp, 8)
+        
+        # dechirp method 3
+        # self.dechirp = numpy.exp((1j*2*numpy.pi*((k*k)/(2*self.M))))
+        # self.dechirp = self.dechirp*numpy.exp(1j*2*numpy.pi*(-k/2)) 
+        # self.dechirp = numpy.conj(self.dechirp)
+        # self.dechirp_8 = numpy.tile(self.dechirp, 8)
+
 
         # for sending
         self.sending_mode = False
         self.sending_size = 8 * self.M
+        self.sending_signal = numpy.zeros(self.M*8, dtype=numpy.complex64) -1
 
         # for drawing
         self.image_count = 0
@@ -85,14 +105,8 @@ class weak_lora_detect(gr.sync_block):
             self.buffer_meta = [dict() for i in range(0, 5)]
         # ------------------------ !for checking ----------------------------------
 
-        # --------------------------------------------- DB
-        self.register_db = False
-        self.client = MongoClient('localhost', 27018)
-        self.db = self.client['Lora']
-        self.signals = self.db['signals']
-        # --------------------------------------------- !DB
-
         self.set_output_multiple(self.sending_size)
+ 
 
     def find_maximum(self):
         max_index = 0
@@ -117,48 +131,92 @@ class weak_lora_detect(gr.sync_block):
         return max_index, self.bin_buffer_detail[max_index]
 
     def set_frequencyOffset(self, signal_index, bin_number):
-        # find frequency offset
-        fft_interval = 125000/(self.M*8)
-        frequencyOffset_bin = bin_number - self.M * 4 # self.M * 8 / 2            // because shifted
-        frequencyOffset = frequencyOffset_bin*fft_interval
-        print("Bin Offset", frequencyOffset_bin)
+        BW = 125000
+        fft_interval = BW / (self.M * self.preamble_len)
+        frequency_offset_bin = bin_number - (self.M * (self.preamble_len / 2))
+        frequency_offset = frequency_offset_bin * fft_interval
 
-        # make signal
-        k = numpy.linspace(0.0, self.M * 8 - 1.0, self.M * 8) / 125000
-        offset_signal = numpy.exp(1j*2*numpy.pi*(-frequencyOffset)*k)
+        # k = numpy.linspace(0.0, self.M * self.preamble_len - 1.0, self.M * self.preamble_len) / BW
+        k = numpy.linspace(0.0, self.M - 1.0, self.M) / BW
+        offset_signal = numpy.exp(1j*2*numpy.pi*(-frequency_offset)*k)
 
         # adjust CFO
-        self.adjusted_signal = self.signal_buffer[signal_index:signal_index + self.M * 8] * offset_signal
-        dechirped_adjusted_signal = self.adjusted_signal * self.dechirp_8
-        # ----------------- drawing ------------------
-        offset_ffted = numpy.fft.fft(offset_signal)
-        # self.draw_graph(offset_ffted, '%d_1_offset_ffted' %(-frequencyOffset_bin)) 
+        for i in range(8):
+            # --------Correct frequency offset--------
+            self.adjusted_signal[i*self.M:(i+1)*self.M] = self.signal_buffer[self.M*i + signal_index : self.M*(i+1) + signal_index]
+            self.adjusted_signal[i*self.M:(i+1)*self.M] = self.adjusted_signal[i*self.M:(i+1)*self.M] * offset_signal
 
-        dechirped_origin_ffted = numpy.fft.fft(self.signal_buffer[signal_index:signal_index + self.M * 8]*self.dechirp_8)
-        # self.draw_graph(abs(dechirped_origin_ffted), '%d_2_dechirped_origin_ffted' %(-frequencyOffset_bin))
+            # -------------show bin----------------
+            # adjusted_dechirp = self.adjusted_signal[i*self.M:(i+1)*self.M] * self.dechirp
+            # bin=numpy.fft.fft(adjusted_dechirp)
+            # bin_abs = numpy.abs(bin)
+            # result_bin = numpy.argmax(bin_abs)
+            # print("bin : ",result_bin)
+            # --------------!show bin----------------
 
-        dechirped_adjusted_ffted = numpy.fft.fft(dechirped_adjusted_signal)
-        # self.draw_graph(abs(dechirped_adjusted_ffted), '%d_3_dechirped_adjusted_ffted' %(-frequencyOffset_bin))
-        
-        # ----------------- !drawing ----------------- 
-        adjusted_bin = numpy.argmax(numpy.abs(dechirped_adjusted_ffted))
-        print("adjusted:", adjusted_bin)
-        # mine
-        # self.channel_estimation()
-        return adjusted_bin
+    def angdiff(self,a,b):
+        d = a - b
+        d = numpy.mod(d + numpy.pi, 2*numpy.pi) - numpy.pi
+        return d
+
+    def set_phase_offset(self):
+        symbol_mag = numpy.zeros(self.preamble_len, dtype=numpy.complex64)
+        symbol_bin = numpy.zeros(self.preamble_len, dtype=numpy.int)
+        for i in range(8):
+            symbol_fft = numpy.fft.fft(self.adjusted_signal[i*self.M : (i+1)*self.M] * self.dechirp)
+            symbol_fft_abs = numpy.abs(symbol_fft)
+            symbol_mag[i] = numpy.max(symbol_fft_abs)
+            symbol_bin[i] = numpy.argmax(symbol_fft_abs)
+        # print("-----------------------------")
+        # print("bin : ", symbol_bin)
+        # print("mag : ", symbol_mag)
+        phase_angle = numpy.zeros(self.preamble_len, dtype=numpy.float)
+        for i in range(8):
+            phase_fft = numpy.fft.fft(self.adjusted_signal[i*self.M : (i+1)*self.M] * self.dechirp)
+            phase_angle[i] = numpy.angle(phase_fft[0])
+        # print("phase_angle : ", phase_angle)
+        phase_diff = numpy.zeros(self.preamble_len - 1, dtype=numpy.float)
+        for i in range(self.preamble_len - 1):
+            phase_diff[i] = self.angdiff(phase_angle[i], phase_angle[i + 1])
+
+        # print("----------Angle----------")
+        # print(phase_angle)
+        # print()
+        # print("-----------Diff--------------")
+        # print(phase_diff)
+        # print()
+        # print("--------Symbol index----------")
+        # print(symbol_bin)
+        # print()
+        phase_mean = numpy.mean(phase_diff[2:7])
+        # print("----------phase_mean----------")
+        # print(phase_mean)
+        # print()
+        CFO_fine=(phase_mean*125000)/(1024*2*numpy.pi)
+
+        # print("----------CFO_fine-------------")
+        # print(CFO_fine)
+        # print()
+        k = numpy.linspace(0.0, self.M - 1.0, self.M) / 125000
+        for i in range(8):
+            self.adjusted_signal2[i*self.M : (i+1)*self.M] = self.adjusted_signal[i*self.M : (i+1)*self.M] * numpy.exp(2j*numpy.pi*(-CFO_fine)*k) * numpy.exp(1j*(phase_mean)*i)
+
+        phase_angle2 = numpy.zeros(8, dtype=numpy.float)
+        phase_diff2 = numpy.zeros(7, dtype=numpy.float)
+        for i in range(8):
+            phase_fft2 = numpy.fft.fft(self.adjusted_signal2[i*self.M : (i+1)*self.M] * self.dechirp)
+            phase_angle2[i] = numpy.angle(phase_fft2[0])
+        for i in range(7):
+            phase_diff2[i] = self.angdiff(phase_angle2[i], phase_angle2[i+1])
+
+        # print("-----------PHASE DIFF--------------")
+        # print(phase_diff2)
 
     def channel_estimation(self):
-        k = numpy.linspace(0.0, self.M - 1.0, self.M)
-        self.upchirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
+        self.upchirp = numpy.conj(self.dechirp)
         self.upchirp_8 = numpy.tile(self.upchirp, self.preamble_len)
-
-        channel_est = self.adjusted_signal / self.upchirp_8
-
         for i in range(8):
-            plt.plot(channel_est[i*self.M : (i+1)*self.M])
-            # mine
-            plt.savefig("est-%d-%d.png" %(self.image_count, i))
-            plt.clf()
+            self.channel_est[i*self.M : (i+1)*self.M] = self.adjusted_signal2[i*self.M : (i+1)*self.M] / self.upchirp
 
     def detect_preamble(self):
         if self.buffer[0] == -1:
@@ -179,12 +237,59 @@ class weak_lora_detect(gr.sync_block):
         plt.savefig(description)
         plt.clf()
 
+    def draw_plot_specto(self, description):
+        fig = plt.figure()
+        ax = fig.add_subplot(3,1,1)
+        ax.plot(self.energe_buffer)
+        ax = fig.add_subplot(3,1,2)
+        ax.specgram(self.signal_buffer, Fs=1)
+        ax = fig.add_subplot(3,1,3)
+        sending_fft = numpy.fft.fftshift(self.sending_signal*self.dechirp_8)
+        sending_fft_abs = numpy.abs(sending_fft)
+        ax.plot(sending_fft_abs)
+        fig.savefig(description)
+        fig.clf()
+    
+    def draw_energe_long_preamble(self, description, timing_index):
+        fig = plt.figure()
+        ax = fig.add_subplot(2,1,1)
+        ax.plot(self.energe_buffer)
+        ax = fig.add_subplot(2,1,2)
+        interval = self.M * 2
+        # result_signal = self.signal_buffer[timing_index - interval: timing_index + (self.M * self.preamble_len) + interval]
+        result_signal = self.signal_buffer
+        ax.specgram(result_signal, Fs=1)
+        fig.savefig(description)
+        fig.clf()
+
+    def draw_plot_specto_bin(self, description, graph):
+        sending_fft = numpy.fft.fft(graph*self.dechirp_8)
+        sending_fft_shift = numpy.fft.fftshift(sending_fft)
+        sending_fft_abs = numpy.abs(sending_fft_shift)
+        graph_bin = numpy.argmax(sending_fft_abs)
+        graph_mag = numpy.max(sending_fft_abs)
+        fig = plt.figure()
+        ax = fig.add_subplot(3,1,1)
+        ax.specgram(graph,Fs=125000)
+        ax.set_title("bin : %d    mag : %.2f"%(graph_bin, graph_mag))
+
+        ax = fig.add_subplot(3,1,2)
+        ax.plot(self.adjusted_signal2 * self.dechirp_8)
+
+        ax = fig.add_subplot(3,1,3)
+        ax.plot(self.channel_est)
+        
+        fig.tight_layout()
+        fig.savefig(description)
+
     def save_signal_to_db(self):
         signal = {
             "gateway": self.gatewayName,
             "sample_rate": 125000,
             "length": self.sending_size,
             "time": datetime.datetime.utcnow(),
+            "bin_num": self.max_bin_detail.item(),
+            "mag_max": self.max_mag.item(),
             "real": self.signal_buffer[self.signal_timing_index : self.signal_timing_index + self.sending_size].real.tolist(),
             "imag": self.signal_buffer[self.signal_timing_index : self.signal_timing_index + self.sending_size].imag.tolist()
         }
@@ -192,7 +297,6 @@ class weak_lora_detect(gr.sync_block):
         print("Save(%s): %s" %(self.gatewayName, signal_id))
         # self.register_db = True
         #
-
 
     def work(self, input_items, output_items):
         signal_size = len(input_items[0])
@@ -217,7 +321,8 @@ class weak_lora_detect(gr.sync_block):
             self.energe_buffer[-1] = numpy.max(numpy.abs(dechirped_signals_fft))
             self.bin_buffer = numpy.roll(self.bin_buffer, -1)
             self.bin_buffer[-1] = numpy.argmax(numpy.abs(dechirped_signals_fft))
-            
+        
+        for i in range(0, n_syms):
             ## check
             if(self.energe_buffer[self.check_index - 1] > self.energe_buffer[self.check_index - 2]):
                 self.decrease_count = 0
@@ -233,14 +338,22 @@ class weak_lora_detect(gr.sync_block):
                         self.enough_increase = False
                         if(self.max_mag > self.energe_buffer[0] * 5):
                             self.image_count += 1
-                            # self.draw_graph(self.energe_buffer, "%d-broad" %(self.image_count))
                             print("detect lora preamble (with charm)")
+                            # self.draw_plot_specto(self.description + "signal-energe-bin-%d" %self.image_count)
                             max_index, energe = self.find_maximum()
-                            max_index_detail, max_bin_detail = self.find_maximum_detail(max_index - (n_syms - i - 1))
-                            self.signal_timing_index = self.M * (max_index - 1 - 8) + max_index_detail
-                            self.set_frequencyOffset(self.signal_timing_index, max_bin_detail)
+                            # for buf_index, buf_mag in enumerate(self.energe_buffer):
+                            #     print(buf_index, ":", buf_mag)
+                            max_index_detail, self.max_bin_detail = self.find_maximum_detail(max_index)
+                            self.signal_timing_index = self.M * (max_index - 8) + max_index_detail
+                            self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
+                            self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
+                            self.set_phase_offset()
+                            self.channel_estimation()
+                            # draw graph
+                            # self.draw_plot_specto_bin(self.description + "signal-spec-bin-%d"%self.image_count, self.sending_signal)
+                            
                             self.sending_mode = True
-                            self.save_signal_to_db()
+                            # self.save_signal_to_db()
             else:
                 pass
 
@@ -273,10 +386,12 @@ class weak_lora_detect(gr.sync_block):
 
         # send
         if(self.sending_mode):
-            output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
+            # output_items[0][:] = self.signal_buffer[-self.sending_size :]
+            # output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
+            # output_items[0][:] = self.sending_signal
+            output_items[0][:] = self.adjusted_signal2
+            # output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
         else:
-            # output_items[0][:] = numpy.random.normal(size=self.sending_size)
-            output_items[0][:] = numpy.zeros(self.sending_size, dtype=numpy.complex64)
+            output_items[0][:] = numpy.random.normal(size=self.sending_size)
         self.sending_mode = False
-        self.index_signal += 1
         return len(output_items[0])
