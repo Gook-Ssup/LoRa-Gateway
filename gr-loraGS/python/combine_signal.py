@@ -51,10 +51,10 @@ class combine_signal(gr.sync_block):
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
-        self.dechirp = numpy.exp(1j*numpy.pi*k/self.M*k)
-        self.dechirp_8 = numpy.tile(self.dechirp, self.preamble_len)
+        self.dechirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
+        self.dechirp_8 = numpy.tile(self.dechirp, 8)
         # upchirp
-        self.upchirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
+        self.upchirp = numpy.conj(self.dechirp)
         self.upchirp_8 = numpy.tile(self.upchirp, self.preamble_len)
 
         # draw
@@ -75,8 +75,16 @@ class combine_signal(gr.sync_block):
         plt.savefig(description)
         plt.clf()
 
+    def channel_estimation(self,signal):
+        # self.upchirp = numpy.conj(self.dechirp)
+        # self.upchirp_8 = numpy.tile(self.upchirp, self.preamble_len)
+        channel_est = numpy.zeros(self.M * self.preamble_len, dtype=numpy.complex64)
+        for i in range(8):
+            channel_est[i*self.M : (i+1)*self.M] = signal[i*self.M : (i+1)*self.M] / self.upchirp
+        return channel_est
+
     def draw_subplot(self, graph, num_mag, num_bin, gatewayNum):
-        description = "/home/yun/LoRa-Gateway/gr-loraGS/python/image/"
+        description = "/home/gnuradio-inc/Yun/image/"
         fig = plt.figure()
         ax = fig.add_subplot(2,1,1)
         if gatewayNum == 1:
@@ -95,7 +103,7 @@ class combine_signal(gr.sync_block):
         fig.savefig(description)
 
     def write_signal_mag(self, signal, combine):
-        sys.stdout = open('/home/yun/Desktop/output.txt', 'a')
+        sys.stdout = open('/home/Yun/Desktop/output.txt', 'a')
         if combine != 1:
             print(signal, end='\t\t')
         else:
@@ -107,49 +115,58 @@ class combine_signal(gr.sync_block):
         in1 = input_items[1]
         out = output_items[0]
     
+        # sys.stdout = open('/home/yun/Desktop/output_signal_in0.txt', 'a')
+
         if in0[0] != 0 or in1[0] != 0:
             # signal combine
             if in0[0] != 0:
                 # channel multiple signal
-                channel_est = in0[:self.combine_size] / self.upchirp_8
+                channel_est = self.channel_estimation(in0)
                 conj_h = numpy.conj(channel_est)
-                self.result_h = conj_h * in0[:self.combine_size]
+                self.result_h = conj_h * in0
                 self.combine_signal += self.result_h
 
                 # Find in0 signal FFT & abs
                 in0_signal = in0 * self.dechirp_8
                 combine_in0_fft = numpy.fft.fftshift(numpy.fft.fft(in0_signal))
+                # combine_in0_fft = numpy.fft.fft(in0_signal)
                 combine_in0_fft_abs = numpy.abs(combine_in0_fft)
                 in0_mag = numpy.max(combine_in0_fft_abs)
                 in0_bin = numpy.argmax(combine_in0_fft_abs)
                 
-                self.draw_subplot(combine_in0_fft_abs,in0_mag,in0_bin,1)
-                numpy.savetxt('/home/gnuradio-inc/Yun/text/in0_signal-%d.txt'%(self.image_count), in0_signal.view(float).reshape(-1,2))
+                # self.draw_subplot(combine_in0_fft_abs,in0_mag,in0_bin,1)
+                self.draw_subplot(combine_in0_fft,in0_mag,in0_bin,1)
+                # numpy.savetxt('/home/gnuradio-inc/Yun/text/in0_signal-%d.txt'%(self.image_count), in0_signal.view(float).reshape(-1,2))
+                # numpy.savetxt('/home/gnuradio-inc/Yun/text/in0_signal-%d.txt'%(self.image_count), in0_signal, fmt='%.18e%+.18ej')
                 self.image_count += 1
                 self.index_in0 = self.index_signal
                 self.input_in0 = True
                 
             if in1[0] != 0:
                 # channel multiple signal
-                channel_est = in1[:self.combine_size] / self.upchirp_8
+                channel_est = self.channel_estimation(in1)
                 conj_h = numpy.conj(channel_est)
-                self.result_h = conj_h * in1[:self.combine_size]
+                self.result_h = conj_h * in1
                 self.combine_signal += self.result_h
                 
                 # Find in1 signal FFT & abs
                 in1_signal = in1 * self.dechirp_8
                 combine_in1_fft = numpy.fft.fftshift(numpy.fft.fft(in1_signal))
+                # combine_in1_fft = numpy.fft.fft(in1_signal)
                 combine_in1_fft_abs = numpy.abs(combine_in1_fft)
                 in1_mag = numpy.max(combine_in1_fft_abs)
                 in1_bin = numpy.argmax(combine_in1_fft_abs)
                 
-                self.draw_subplot(combine_in1_fft_abs,in1_mag,in1_bin,2)
-                numpy.savetxt('/home/gnuradio-inc/Yun/text/in1_signal-%d.txt'%(self.image_count2), in1_signal.view(float).reshape(-1,2))
+                # self.draw_subplot(combine_in1_fft_abs,in1_mag,in1_bin,2)
+                self.draw_subplot(combine_in1_fft,in1_mag,in1_bin,2)
+                # numpy.savetxt('/home/gnuradio-inc/Yun/text/in1_signal-%d.txt'%(self.image_count2), in1_signal.view(float).reshape(-1,2))
+                # numpy.savetxt('/home/gnuradio-inc/Yun/text/in1_signal-%d.txt'%(self.image_count2), in1_signal, fmt='%.18e%+.18ej')
                 self.image_count2 += 1
                 self.index_in1 = self.index_signal
                 self.input_in1 = True
                 
             # if self.count == 2:
+            
             if self.input_in0 == True and self.input_in1 == True:
                 if numpy.abs(self.index_in0 - self.index_in1) < 10:
                     print("index_in0 : ", self.index_in0)
