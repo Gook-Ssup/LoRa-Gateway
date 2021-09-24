@@ -265,15 +265,15 @@ class weak_lora_detect(gr.sync_block):
                 self.decrease_count = 0
                 self.increase_count += 1
                 self.max_mag = self.energe_buffer[self.check_index - 1]
-                if(self.increase_count >= 5):
+                if(self.increase_count >= 3):
                     self.enough_increase = True
             elif(self.energe_buffer[self.check_index - 1] < self.energe_buffer[self.check_index - 2]):
                 self.increase_count = 0
                 self.decrease_count += 1
                 if(self.enough_increase):
-                    if(self.decrease_count >= 5):
+                    if(self.decrease_count >= 3):
                         self.enough_increase = False
-                        if(self.max_mag > self.energe_buffer[0] * 5):
+                        if(self.max_mag > self.energe_buffer[0] * 2):
                             self.image_count += 1
                             print("detect lora preamble (with charm)")
                             max_index, energe = self.find_maximum()
