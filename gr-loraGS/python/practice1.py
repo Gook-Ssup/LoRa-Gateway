@@ -2,28 +2,35 @@ import sys
 import numpy
 import matplotlib.pyplot as plt
 
-k1 = numpy.linspace(0.0, 9.0, 10)
 
-description = "/home/yun/Desktop/practice/"
+# k = numpy.linspace(0.0, 1024-1.0, 1024)
+# dechirp = numpy.exp(1j*numpy.pi*k/1024*k)
+# dechirp_8 = numpy.tile(dechirp, 8)
 
-fig = plt.figure()
-# add_subplot : #, 1, sequence
-ax = fig.add_subplot(2,1,1)
-ax.plot(k1,'r-',lw=1)
-ax.set_title('H1')
-# Draw Tile
-# ax.grid(True)
+adjusted_signal = numpy.loadtxt('text/in0_signal-2.txt',dtype=numpy.complex128)
 
-# Y : sin 4 pi x
-# ax.set_ylabel(r'$sin(4 \pi x)$')
+plt.plot(adjusted_signal)
+plt.show()
 
-# plt.axis : [-x,+x,-y,+y] range
-# plt.axis([0,1,-1.5,1.5])
-
-ax = fig.add_subplot(2,1,2)
-ax.plot(k1,'b-',lw=1)
-ax.set_title('H2')
-fig.tight_layout()
-
-fig.savefig(description + 'practice1.png')
+symbol_max_mag = numpy.zeros(8, dtype=numpy.complex64)
+symbol_max_index = numpy.zeros(8)
+for i in range(8):
+    symbol_fft = numpy.fft.fftshift(numpy.fft.fft(adjusted_signal[i*1024:(i+1)*1024]))
+    # symbol_fft_abs = numpy.abs(symbol_fft)
+    symbol_max_mag[i] = numpy.max(symbol_fft)
+    symbol_max_index[i] = numpy.argmax(symbol_fft)
+print("=====================FFT====================")
+print("bin:", symbol_max_index)
+print("max:", symbol_max_mag)
+print("====================Angle===================")
+npa_angle = numpy.angle(symbol_max_mag)
+print(npa_angle)
+print("============================================")
+li_angle_diff = []
+for i in range(1, 8):
+    angle_diff = npa_angle[i] - npa_angle[i - 1]
+    if(angle_diff < 0):
+        angle_diff += 2* numpy.pi
+    li_angle_diff.append(angle_diff)
+print(li_angle_diff)
 

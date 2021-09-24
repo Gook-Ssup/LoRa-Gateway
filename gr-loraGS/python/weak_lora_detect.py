@@ -61,8 +61,11 @@ class weak_lora_detect(gr.sync_block):
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
-        self.dechirp = numpy.exp(1j*numpy.pi*k/self.M*k)
+        self.dechirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
         self.dechirp_8 = numpy.tile(self.dechirp, 8)
+        # self.dechirp = numpy.exp((-1j*numpy.pi*(k*k)/self.M)-k)
+        # self.dechirp = numpy.conj(self.dechirp)
+        # self.dechirp_8 = numpy.tile(self.dechirp, 8)
 
         # for sending
         self.sending_mode = False
@@ -112,16 +115,16 @@ class weak_lora_detect(gr.sync_block):
                 self.bin_buffer_detail[i] = numpy.argmax(numpy.abs(dechirped_signals_fft))
             except:
                 print(self.M * (k - 1) + i - self.M *8, self.M * (k - 1) + i)
-        # self.draw_graph(self.energe_buffer_detail, "%d-detail" %(self.image_count))
-        max_index = numpy.argmax(numpy.abs(self.energe_buffer_detail))
-        return max_index, self.bin_buffer_detail[max_index]
+        # self.draw_graph(self.energe_buffer_detail, "detail-%d" %(self.image_count))
+        max_index_detail = numpy.argmax(numpy.abs(self.energe_buffer_detail))
+        return max_index_detail, self.bin_buffer_detail[max_index_detail]
 
     def set_frequencyOffset(self, signal_index, bin_number):
         # find frequency offset
         fft_interval = 125000/(self.M*8)
         frequencyOffset_bin = bin_number - self.M * 4 # self.M * 8 / 2            // because shifted
         frequencyOffset = frequencyOffset_bin*fft_interval
-        print("Bin Offset", frequencyOffset_bin)
+        # print("Bin Offset", frequencyOffset_bin)
 
         # make signal
         k = numpy.linspace(0.0, self.M * 8 - 1.0, self.M * 8) / 125000
@@ -142,10 +145,34 @@ class weak_lora_detect(gr.sync_block):
         
         # ----------------- !drawing ----------------- 
         adjusted_bin = numpy.argmax(numpy.abs(dechirped_adjusted_ffted))
-        print("adjusted:", adjusted_bin)
+        # print("adjusted:", adjusted_bin)
         # mine
         # self.channel_estimation()
+        # self.adjust_angle()
         return adjusted_bin
+
+    def adjust_angle(self):
+        symbol_max_mag = numpy.zeros(8, dtype=numpy.complex64)
+        symbol_max_index = numpy.zeros(8)
+        for i in range(8):
+            symbol_fft = numpy.fft.fftshift(numpy.fft.fft(self.adjusted_signal[i*1024:(i+1)*1024]))
+            # symbol_fft_abs = numpy.abs(symbol_fft)
+            symbol_max_mag[i] = numpy.max(symbol_fft)
+            symbol_max_index[i] = numpy.argmax(symbol_fft)
+        print("=====================FFT====================")
+        print("bin:", symbol_max_index)
+        print("max:", symbol_max_mag)
+        print("====================Angle===================")
+        npa_angle = numpy.angle(symbol_max_mag)
+        print(npa_angle)
+        print("============================================")
+        li_angle_diff = []
+        for i in range(1, 8):
+            angle_diff = npa_angle[i] - npa_angle[i - 1]
+            if(angle_diff < 0):
+                angle_diff += 2* numpy.pi
+            li_angle_diff.append(angle_diff)
+        print(li_angle_diff)
 
     def channel_estimation(self):
         k = numpy.linspace(0.0, self.M - 1.0, self.M)
@@ -176,6 +203,23 @@ class weak_lora_detect(gr.sync_block):
 
     def draw_graph(self, graph, description):
         plt.plot(graph)
+        plt.savefig(description)
+        plt.clf()
+
+    def draw_specgram(self, graph, description):
+        plt.specgram(graph, Fs=125000)
+        plt.savefig(description)
+        plt.clf()
+
+    def draw_plot_specto(self, description, index):
+        plt.subplot(3,1,1)
+        plt.title("%s" %index)
+        plt.plot(self.energe_buffer)
+        plt.subplot(3,1,2)
+        plt.specgram(self.signal_buffer, Fs=1)
+        plt.subplot(3,1,3)
+        # plt.plot(self.bin_buffer)
+        plt.specgram(self.sending_signal, Fs=1)
         plt.savefig(description)
         plt.clf()
 
@@ -219,7 +263,8 @@ class weak_lora_detect(gr.sync_block):
             self.energe_buffer[-1] = numpy.max(numpy.abs(dechirped_signals_fft))
             self.bin_buffer = numpy.roll(self.bin_buffer, -1)
             self.bin_buffer[-1] = numpy.argmax(numpy.abs(dechirped_signals_fft))
-            
+        
+        for i in range(0, n_syms):
             ## check
             if(self.energe_buffer[self.check_index - 1] > self.energe_buffer[self.check_index - 2]):
                 self.decrease_count = 0
@@ -235,14 +280,18 @@ class weak_lora_detect(gr.sync_block):
                         self.enough_increase = False
                         if(self.max_mag > self.energe_buffer[0] * 5):
                             self.image_count += 1
-                            # self.draw_graph(self.energe_buffer, "%d-broad" %(self.image_count))
                             print("detect lora preamble (with charm)")
                             max_index, energe = self.find_maximum()
-                            max_index_detail, self.max_bin_detail = self.find_maximum_detail(max_index - (n_syms - i - 1))
-                            self.signal_timing_index = self.M * (max_index - 1 - 8) + max_index_detail
+                            # for buf_index, buf_mag in enumerate(self.energe_buffer):
+                            #     print(buf_index, ":", buf_mag)
+                            max_index_detail, self.max_bin_detail = self.find_maximum_detail(max_index)
+                            self.signal_timing_index = self.M * (max_index - 8) + max_index_detail
+                            self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
                             self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
                             self.sending_mode = True
-                            self.save_signal_to_db()
+                            self.draw_plot_specto("signal-energe-bin-%d" %self.image_count, self.signal_timing_index)
+                            print("index:", self.signal_timing_index)
+                            # self.save_signal_to_db()
             else:
                 pass
 
@@ -275,7 +324,12 @@ class weak_lora_detect(gr.sync_block):
 
         # send
         if(self.sending_mode):
-            output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
+            # output_items[0][:] = self.signal_buffer[-self.sending_size :]
+            # output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
+            output_items[0][:] = self.sending_signal
+            # output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
+            #output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
+
         else:
             # output_items[0][:] = numpy.random.normal(size=self.sending_size)
             output_items[0][:] = numpy.zeros(self.sending_size, dtype=numpy.complex64)
