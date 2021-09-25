@@ -28,11 +28,13 @@ class lora_preamble_detect(gr.sync_block):
     """
     docstring for block lora_preamble_detect
     """
-    def __init__(self, sf, threshold, preamble_len):
+    def __init__(self, gatewayName, sf, threshold, preamble_len):
         gr.sync_block.__init__(self,
             name="lora_preamble_detect",
             in_sig=[numpy.complex64],
             out_sig=[numpy.complex64])
+        self.gatewayName = gatewayName
+
         self.M = int(2**sf)
         self.preamble_len = preamble_len
         self.thres = threshold
@@ -73,10 +75,6 @@ class lora_preamble_detect(gr.sync_block):
 
         if(mean_err_sq/max_err_sq < self.thres):
             self.buffer_meta[self.preamble_len-1]['preamble_value'] = numpy.uint16(numpy.round(mean))
-            # print("-------------------------detect-------------------------------")
-            # print("buffer:", self.buffer)
-            # print("buffer_meta:", self.buffer_meta)
-            # print("input:", in0, len(in0))
             return True
         else:
             pass
@@ -88,9 +86,6 @@ class lora_preamble_detect(gr.sync_block):
         in0 = input_items[0]
 
         n_syms = len(in0)//self.M
-
-        #print("in0 len:", len(in0))
-        # print("n_syms:", n_syms)
 
         for i in range(0, n_syms):
             #Demod and shift buffer
@@ -120,7 +115,7 @@ class lora_preamble_detect(gr.sync_block):
             self.signal_buffer=numpy.roll(self.signal_buffer, -input_len)
             self.signal_buffer[-input_len:] = in0
             if(self.detect_preamble()):
-                print("Detect Preamble(Origin)")
+                print("Detect Preamble(%s)" %self.gatewayName)
                 self.sending_mode = True
 
             if(self.sending_mode):

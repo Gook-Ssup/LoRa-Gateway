@@ -4,7 +4,7 @@ category: '[loraGS]'
 
 templates:
   imports: import loraGS
-  make: loraGS.lora_preamble_detect(${sf}, ${threshold}, ${preamble_len})
+  make: loraGS.lora_preamble_detect(${gatewayName}, ${sf}, ${threshold}, ${preamble_len})
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -12,6 +12,9 @@ templates:
 #     * label (label shown in the GUI)
 #     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 parameters:
+- id: gatewayName
+  label: Gateway Name
+  dtype: string
 - id: sf
   label: Spreading Factor
   dtype: int

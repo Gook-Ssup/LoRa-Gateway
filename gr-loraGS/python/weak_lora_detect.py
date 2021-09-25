@@ -312,39 +312,13 @@ class weak_lora_detect(gr.sync_block):
                             self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
                             self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
                             self.set_phase_offset()
+                            self.draw_specgram(self.adjusted_signal, "signal-%d" %self.image_count)
                             # self.draw_plot_specto("signal-energe-bin-%d" %self.image_count, self.signal_timing_index)
                             # self.draw_adjusted("signal-energe-bin-%d" %self.image_count)
                             # self.save_signal_to_db()
                             self.sending_mode = True
             else:
                 pass
-
-            # --------------------------- Checking Start ---------------------------
-            self.buffer = numpy.roll(self.buffer, -1)
-            self.complex_buffer = numpy.roll(self.complex_buffer, -1)
-            self.buffer_meta.pop(0)
-            self.buffer_meta.append(dict())
-
-            sig = input_items[0][i*self.M:(i+1)*self.M]
-            (hard_sym, complex_sym) = self.demod.complex_demodulate(sig)
-            self.buffer[-1] = hard_sym[0]
-            self.complex_buffer[-1] = complex_sym[0]
-
-            #Conjugate demod and shift conjugate buffer, if needed
-            #AABBC or ABBCC
-            #   ^       ^
-            if ('sync_value' in self.buffer_meta[-2]) or ('sync_value' in self.buffer_meta[-3]):
-                self.conj_buffer = numpy.roll(self.conj_buffer, -1)
-                self.conj_complex_buffer = numpy.roll(self.conj_complex_buffer, -1)
-
-                (hard_sym, complex_sym) = self.demod_conj.complex_demodulate(sig)
-                self.conj_buffer[-1] = hard_sym[0]
-                self.conj_complex_buffer[-1] = complex_sym[0]
-
-            #Check for preamble
-            if(self.detect_preamble()):
-                print("Detect Preamble(Origin)")
-            # --------------------------- Checking End ---------------------------
 
         # send
         if(self.sending_mode):
