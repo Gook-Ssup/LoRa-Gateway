@@ -75,6 +75,9 @@ class weak_lora_detect(gr.sync_block):
         # for drawing
         self.image_count = 0
 
+        # for timming
+        self.work_count = 0
+
         # ------------------------ for checking ----------------------------------
         self.demod = css_demod_algo(self.M)
         self.demod_conj = css_demod_algo(self.M, True)
@@ -227,6 +230,7 @@ class weak_lora_detect(gr.sync_block):
     def draw_plot_specto(self, description, index):
         plt.subplot(3,1,1)
         plt.title("%s" %index)
+        plt.grid(True)
         plt.plot(self.energe_buffer)
         plt.subplot(3,1,2)
         plt.specgram(self.signal_buffer, Fs=1)
@@ -264,6 +268,7 @@ class weak_lora_detect(gr.sync_block):
         #
 
     def work(self, input_items, output_items):
+        self.work_count += 1
         signal_size = len(input_items[0])
 
         ## save signal
@@ -293,17 +298,17 @@ class weak_lora_detect(gr.sync_block):
                 self.decrease_count = 0
                 self.increase_count += 1
                 self.max_mag = self.energe_buffer[self.check_index - 1]
-                if(self.increase_count >= 3):
+                if(self.increase_count >= 2):
                     self.enough_increase = True
             elif(self.energe_buffer[self.check_index - 1] < self.energe_buffer[self.check_index - 2]):
                 self.increase_count = 0
                 self.decrease_count += 1
                 if(self.enough_increase):
-                    if(self.decrease_count >= 3):
+                    if(self.decrease_count >= 2):
                         self.enough_increase = False
                         if(self.max_mag > self.energe_buffer[0] * 2):
                             self.image_count += 1
-                            print("detect lora preamble (with charm)")
+                            print("detect lora preamble (%s):%d" %(self.gatewayName, self.work_count))
                             max_index, energe = self.find_maximum()
                             # for buf_index, buf_mag in enumerate(self.energe_buffer):
                             #     print(buf_index, ":", buf_mag)
@@ -312,7 +317,7 @@ class weak_lora_detect(gr.sync_block):
                             self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
                             self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
                             self.set_phase_offset()
-                            self.draw_specgram(self.adjusted_signal, "signal-%d" %self.image_count)
+                            self.draw_specgram(self.adjusted_phase, "signal-%s-%d" %(self.gatewayName, self.work_count))
                             # self.draw_plot_specto("signal-energe-bin-%d" %self.image_count, self.signal_timing_index)
                             # self.draw_adjusted("signal-energe-bin-%d" %self.image_count)
                             # self.save_signal_to_db()

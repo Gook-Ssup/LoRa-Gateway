@@ -64,20 +64,27 @@ class combine_signal(gr.sync_block):
         self.image_count = 1
         self.image_count2 = 1
         self.image_count3 = 1
-        # self.count = 0
-        self.index_signal = 1
-        self.index_in0 = 0
-        self.index_in1 = 0
-        self.input_in0 = False
-        self.input_in1 = False
+
         self.set_output_multiple(self.sending_size)
 
         self.combine_in0_fft_abs = numpy.zeros(1024, dtype=numpy.float)
         self.combine_in1_fft_abs = numpy.zeros(1024, dtype=numpy.float)
+
+        # for timming
+        self.work_count = 0
+        self.work_count_in0 = 0
+        self.work_count_in1 = 0
+        self.input_in0 = False
+        self.input_in1 = False
         
 
     def draw_graph(self, graph, description, mag, bin2):
         plt.plot(graph)
+        plt.savefig(description)
+        plt.clf()
+
+    def draw_specgram(self, graph, description):
+        plt.specgram(graph, Fs=125000)
         plt.savefig(description)
         plt.clf()
 
@@ -104,11 +111,14 @@ class combine_signal(gr.sync_block):
         else:
             ax.plot(graph,'b-',lw=1)
             description = 'combine-%d.png' %(self.image_count3)
-        ax.set_title("index: %d   mag: %.2f   bin: %d" %(self.index_signal,num_mag, num_bin))
+            self.image_count3 += 1
+        ax.set_title("index: %d   mag: %.2f   bin: %d" %(self.work_count,num_mag, num_bin))
         fig.tight_layout()
         fig.savefig(description)
     
     def work(self, input_items, output_items):
+        self.work_count += 1
+
         in0 = input_items[0]
         in1 = input_items[1]
         out = output_items[0]
@@ -135,7 +145,7 @@ class combine_signal(gr.sync_block):
                 # numpy.savetxt('/home/gnuradio-inc/Yun/text/in0_signal-%d.txt'%(self.image_count), in0_signal.view(float).reshape(-1,2))
                 # numpy.savetxt('/home/gnuradio-inc/Yun/text/in0_signal-%d.txt'%(self.image_count), in0_signal, fmt='%.18e%+.18ej')
                 self.image_count += 1
-                self.index_in0 = self.index_signal
+                self.work_count_in0 = self.work_count
                 self.input_in0 = True
                 
             if in1[0] != 0:
@@ -156,21 +166,20 @@ class combine_signal(gr.sync_block):
                 
                 # self.draw_subplot(self.combine_in1_fft_abs,in1_mag,in1_bin,2)
                 # self.draw_subplot(combine_in1_fft,in1_mag,in1_bin,2)
-                # numpy.savetxt('/home/gnuradio-inc/Yun/text/in1_signal-%d.txt'%(self.image_count2), in1_signal.view(float).reshape(-1,2))
-                # numpy.savetxt('/home/gnuradio-inc/Yun/text/in1_signal-%d.txt'%(self.image_count2), in1_signal, fmt='%.18e%+.18ej')
                 self.image_count2 += 1
-                self.index_in1 = self.index_signal
+                self.work_count_in1 = self.work_count
                 self.input_in1 = True
                 
             # if self.count == 2:
             
             if self.input_in0 == True and self.input_in1 == True:
-                if numpy.abs(self.index_in0 - self.index_in1) < 10:
-                    print("index_in0 : ", self.index_in0)
-                    print("index_in1 : ", self.index_in1)
+                if numpy.abs(self.work_count_in0 - self.work_count_in1) < 10:
+                    print("work_count_in0 : ", self.work_count_in0)
+                    print("work_count_in1 : ", self.work_count_in1)
                     # self.combine_signal += self.result_h
                     normalization_factor = math.sqrt(numpy.abs(self.channel_value[0])**2 + numpy.abs(self.channel_value[1])**2)
                     dechirped_combine_signal = (self.combine_signal[:1024]/normalization_factor) * self.dechirp
+                    self.draw_specgram(self.combine_signal/normalization_factor, "combine-%d" %self.work_count)
                     combine_signal_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
                     combine_signal_fft_abs = numpy.abs(combine_signal_fft)
 
@@ -185,25 +194,16 @@ class combine_signal(gr.sync_block):
                     print("snr_ratio_combined : ", snr_ratio_combined)
                     print("snr_ratio_gt_1 : ", snr_ratio_gt_1)
                     print("snr_ratio_gt_2 : ", snr_ratio_gt_2)
-
-                    
-                    self.draw_subplot(combine_signal_fft_abs,max_combine_mag,max_combine_bin,3)
-                    
-                    self.image_count3 += 1
-                    
-                    # self.count = 0
+                    # self.draw_subplot(combine_signal_fft_abs,max_combine_mag,max_combine_bin,3)
                     self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
-                    self.input_in0 = False
-                    self.input_in1 = False
 
                     self.combine_in0_fft_abs = numpy.zeros(1024, dtype=numpy.float)
                     self.combine_in1_fft_abs = numpy.zeros(1024, dtype=numpy.float)
                 else:
-                    self.input_in0 = False
-                    self.input_in1 = False
                     self.combine_in0_fft_abs = numpy.zeros(1024, dtype=numpy.float)
                     self.combine_in1_fft_abs = numpy.zeros(1024, dtype=numpy.float)
+                self.input_in0 = False
+                self.input_in1 = False
         
-        self.index_signal += 1
         out[:] = in0[:]
         return len(output_items[0])
