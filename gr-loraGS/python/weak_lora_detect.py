@@ -57,11 +57,16 @@ class weak_lora_detect(gr.sync_block):
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
-        self.dechirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
-        self.dechirp_8 = numpy.tile(self.dechirp, 8)
-        # self.dechirp = numpy.exp((-1j*numpy.pi*(k*k)/self.M)-k)
-        # self.dechirp = numpy.conj(self.dechirp)
+        # self.dechirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
         # self.dechirp_8 = numpy.tile(self.dechirp, 8)
+        # self.upchirp = numpy.conj(self.dechirp)
+
+        self.upchirp = numpy.exp((1j*2*numpy.pi*((k*k)/(2*self.M))))
+        self.upchirp = self.upchirp*numpy.exp(1j*2*numpy.pi*(-k/2))
+        self.upchirp_8 = numpy.tile(self.upchirp, 8)
+
+        self.dechirp = numpy.conj(self.upchirp)
+        self.dechirp_8 = numpy.tile(self.dechirp, 8)
 
         # for sending
         self.sending_mode = False
@@ -142,9 +147,6 @@ class weak_lora_detect(gr.sync_block):
         # ----------------- !drawing ----------------- 
         adjusted_bin = numpy.argmax(numpy.abs(dechirped_adjusted_ffted))
         # print("adjusted:", adjusted_bin)
-        # mine
-        # self.channel_estimation()
-        # self.adjust_angle()
         return adjusted_bin
 
     def adjust_angle(self):
@@ -202,22 +204,18 @@ class weak_lora_detect(gr.sync_block):
         print("CFO_fine", CFO_fine)
         # 
         k = numpy.linspace(0.0, self.M - 1.0, self.M) / 125000
-        self.adjusted_signal2 = numpy.zeros(self.sending_size, dtype=numpy.complex64)
+        self.adjusted_phase = numpy.zeros(self.sending_size, dtype=numpy.complex64)
         for i in range(8):
-            self.adjusted_signal2[i*self.M : (i+1)*self.M] = self.adjusted_signal[i*self.M : (i+1)*self.M] * numpy.exp(2j*numpy.pi*(-CFO_fine)*k) * numpy.exp(1j*(phase_mean)*i)
+            self.adjusted_phase[i*self.M : (i+1)*self.M] = self.adjusted_signal[i*self.M : (i+1)*self.M] * numpy.exp(2j*numpy.pi*(-CFO_fine)*k) * numpy.exp(1j*(phase_mean)*i)
 
     def channel_estimation(self):
-        k = numpy.linspace(0.0, self.M - 1.0, self.M)
-        self.upchirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
-        self.upchirp_8 = numpy.tile(self.upchirp, self.preamble_len)
-
-        channel_est = self.adjusted_signal / self.upchirp_8
-
+        self.channel_est = numpy.zeros(self.sending_size, dtype=numpy.complex64)
         for i in range(8):
-            plt.plot(channel_est[i*self.M : (i+1)*self.M])
-            # mine
-            plt.savefig("est-%d-%d.png" %(self.image_count, i))
-            plt.clf()
+            self.channel_est[i*self.M : (i+1)*self.M] = self.adjusted_phase[i*self.M : (i+1)*self.M] / self.upchirp
+        
+        plt.plot(self.channel_est)
+        plt.savefig("est-%d.png" %(self.image_count))
+        plt.clf()
 
     def detect_preamble(self):
         if self.buffer[0] == -1:
@@ -254,6 +252,17 @@ class weak_lora_detect(gr.sync_block):
         plt.specgram(self.sending_signal, Fs=1)
         plt.savefig(description)
         plt.clf()
+
+    def draw_adjusted(self, description):
+        plt.subplot(3,1,1)
+        plt.specgram(self.sending_signal, Fs=1)
+        plt.subplot(3,1,2)
+        plt.specgram(self.adjusted_signal, Fs=1)
+        plt.subplot(3,1,3)
+        plt.specgram(self.adjusted_phase, Fs=1)
+        plt.savefig(description)
+        plt.clf()
+
 
     def save_signal_to_db(self):
         signal = {
@@ -320,8 +329,9 @@ class weak_lora_detect(gr.sync_block):
                             self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
                             self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
                             self.set_phase_offset()
+                            self.channel_estimation()
                             # self.draw_plot_specto("signal-energe-bin-%d" %self.image_count, self.signal_timing_index)
-                            print("index:", self.signal_timing_index)
+                            self.draw_adjusted("signal-energe-bin-%d" %self.image_count)
                             # self.save_signal_to_db()
                             self.sending_mode = True
             else:
