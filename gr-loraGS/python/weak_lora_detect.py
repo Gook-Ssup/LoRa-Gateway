@@ -61,11 +61,16 @@ class weak_lora_detect(gr.sync_block):
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
-        self.dechirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
+        self.upchirp = numpy.exp((1j*2*numpy.pi*((k*k)/(2*self.M))))
+        self.upchirp = self.upchirp*numpy.exp(1j*2*numpy.pi*(-k/2))
+        self.upchirp_8 = numpy.tile(self.upchirp, 8)
+
+        self.dechirp = numpy.conj(self.upchirp)
         self.dechirp_8 = numpy.tile(self.dechirp, 8)
-        # self.dechirp = numpy.exp((-1j*numpy.pi*(k*k)/self.M)-k)
-        # self.dechirp = numpy.conj(self.dechirp)
+
+        # self.dechirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
         # self.dechirp_8 = numpy.tile(self.dechirp, 8)
+        # self.upchirp = numpy.conj(self.dechirp)
 
         # for sending
         self.sending_mode = False
@@ -73,6 +78,9 @@ class weak_lora_detect(gr.sync_block):
 
         # for drawing
         self.image_count = 0
+
+        # for timming
+        self.work_count = 0
 
         # ------------------------ for checking ----------------------------------
         self.demod = css_demod_algo(self.M)
@@ -133,22 +141,12 @@ class weak_lora_detect(gr.sync_block):
         # adjust CFO
         self.adjusted_signal = self.signal_buffer[signal_index:signal_index + self.M * 8] * offset_signal
         dechirped_adjusted_signal = self.adjusted_signal * self.dechirp_8
-        # ----------------- drawing ------------------
+
         offset_ffted = numpy.fft.fft(offset_signal)
-        # self.draw_graph(offset_ffted, '%d_1_offset_ffted' %(-frequencyOffset_bin)) 
-
         dechirped_origin_ffted = numpy.fft.fft(self.signal_buffer[signal_index:signal_index + self.M * 8]*self.dechirp_8)
-        # self.draw_graph(abs(dechirped_origin_ffted), '%d_2_dechirped_origin_ffted' %(-frequencyOffset_bin))
-
         dechirped_adjusted_ffted = numpy.fft.fft(dechirped_adjusted_signal)
-        # self.draw_graph(abs(dechirped_adjusted_ffted), '%d_3_dechirped_adjusted_ffted' %(-frequencyOffset_bin))
         
-        # ----------------- !drawing ----------------- 
         adjusted_bin = numpy.argmax(numpy.abs(dechirped_adjusted_ffted))
-        # print("adjusted:", adjusted_bin)
-        # mine
-        # self.channel_estimation()
-        # self.adjust_angle()
         return adjusted_bin
 
     def adjust_angle(self):
@@ -174,18 +172,40 @@ class weak_lora_detect(gr.sync_block):
             li_angle_diff.append(angle_diff)
         print(li_angle_diff)
 
-    def channel_estimation(self):
-        k = numpy.linspace(0.0, self.M - 1.0, self.M)
-        self.upchirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
-        self.upchirp_8 = numpy.tile(self.upchirp, self.preamble_len)
+    def angdiff(self, a, b):
+        d = a - b
+        d = numpy.mod(d + numpy.pi, 2*numpy.pi) - numpy.pi
+        return d
+    
+    def set_phase_offset(self):
+        symbol_mag = numpy.zeros(self.preamble_len, dtype=numpy.complex64)
+        symbol_bin = numpy.zeros(self.preamble_len, dtype=numpy.int)
 
-        channel_est = self.adjusted_signal / self.upchirp_8
-
+        phase_angle = numpy.zeros(self.preamble_len, dtype=numpy.float)
         for i in range(8):
-            plt.plot(channel_est[i*self.M : (i+1)*self.M])
-            # mine
-            plt.savefig("est-%d-%d.png" %(self.image_count, i))
-            plt.clf()
+            phase_fft = numpy.fft.fft(self.adjusted_signal[i*self.M : (i+1)*self.M] * self.dechirp)
+            phase_angle[i] = numpy.angle(phase_fft[0])
+            symbol_mag[i] = numpy.max(phase_fft)
+            symbol_bin[i] = numpy.argmax(phase_fft)
+        # print("-----------FFT-----------")
+        # print("bin : ", symbol_bin)
+        # print("mag : ", symbol_mag)
+        # print("----------Angle----------")
+        phase_diff = numpy.zeros(self.preamble_len - 1, dtype=numpy.float)
+        for i in range(self.preamble_len - 1):
+            phase_diff[i] = self.angdiff(phase_angle[i], phase_angle[i + 1])
+        phase_mean = numpy.mean(phase_diff[2:7])
+        # print("phase_angle : ", phase_angle)
+        # print("phase_diff", phase_diff)
+        # print("phase_mean:", phase_mean)
+        # print("----------CFO_fine-------------")
+        CFO_fine=(phase_mean*125000)/(1024*2*numpy.pi)
+        # print("CFO_fine", CFO_fine)
+        # 
+        k = numpy.linspace(0.0, self.M - 1.0, self.M) / 125000
+        self.adjusted_phase = numpy.zeros(self.sending_size, dtype=numpy.complex64)
+        for i in range(8):
+            self.adjusted_phase[i*self.M : (i+1)*self.M] = self.adjusted_signal[i*self.M : (i+1)*self.M] * numpy.exp(2j*numpy.pi*(-CFO_fine)*k) * numpy.exp(1j*(phase_mean)*i)
 
     def detect_preamble(self):
         if self.buffer[0] == -1:
@@ -214,6 +234,7 @@ class weak_lora_detect(gr.sync_block):
     def draw_plot_specto(self, description, index):
         plt.subplot(3,1,1)
         plt.title("%s" %index)
+        plt.grid(True)
         plt.plot(self.energe_buffer)
         plt.subplot(3,1,2)
         plt.specgram(self.signal_buffer, Fs=1)
@@ -222,6 +243,17 @@ class weak_lora_detect(gr.sync_block):
         plt.specgram(self.sending_signal, Fs=1)
         plt.savefig(description)
         plt.clf()
+
+    def draw_adjusted(self, description):
+        plt.subplot(3,1,1)
+        plt.specgram(self.sending_signal, Fs=1)
+        plt.subplot(3,1,2)
+        plt.specgram(self.adjusted_signal, Fs=1)
+        plt.subplot(3,1,3)
+        plt.specgram(self.adjusted_phase, Fs=1)
+        plt.savefig(description)
+        plt.clf()
+
 
     def save_signal_to_db(self):
         signal = {
@@ -241,6 +273,7 @@ class weak_lora_detect(gr.sync_block):
 
 
     def work(self, input_items, output_items):
+        self.work_count += 1
         signal_size = len(input_items[0])
 
         ## save signal
@@ -270,17 +303,17 @@ class weak_lora_detect(gr.sync_block):
                 self.decrease_count = 0
                 self.increase_count += 1
                 self.max_mag = self.energe_buffer[self.check_index - 1]
-                if(self.increase_count >= 5):
+                if(self.increase_count >= 2):
                     self.enough_increase = True
             elif(self.energe_buffer[self.check_index - 1] < self.energe_buffer[self.check_index - 2]):
                 self.increase_count = 0
                 self.decrease_count += 1
                 if(self.enough_increase):
-                    if(self.decrease_count >= 5):
+                    if(self.decrease_count >= 2):
                         self.enough_increase = False
-                        if(self.max_mag > self.energe_buffer[0] * 5):
+                        if(self.max_mag > self.energe_buffer[0] * 2):
                             self.image_count += 1
-                            print("detect lora preamble (with charm)")
+                            print("detect lora preamble (%s):%d" %(self.gatewayName, self.work_count))
                             max_index, energe = self.find_maximum()
                             # for buf_index, buf_mag in enumerate(self.energe_buffer):
                             #     print(buf_index, ":", buf_mag)
@@ -288,45 +321,20 @@ class weak_lora_detect(gr.sync_block):
                             self.signal_timing_index = self.M * (max_index - 8) + max_index_detail
                             self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
                             self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
-                            self.sending_mode = True
-                            self.draw_plot_specto("signal-energe-bin-%d" %self.image_count, self.signal_timing_index)
-                            print("index:", self.signal_timing_index)
+                            self.set_phase_offset()
+                            self.draw_specgram(self.adjusted_phase, "signal-%s-%d" %(self.gatewayName, self.work_count))
+                            # self.draw_plot_specto("signal-energe-bin-%d" %self.image_count, self.signal_timing_index)
+                            # self.draw_adjusted("signal-energe-bin-%d" %self.image_count)
                             # self.save_signal_to_db()
+                            self.sending_mode = True
             else:
                 pass
-
-            # --------------------------- Checking Start ---------------------------
-            self.buffer = numpy.roll(self.buffer, -1)
-            self.complex_buffer = numpy.roll(self.complex_buffer, -1)
-            self.buffer_meta.pop(0)
-            self.buffer_meta.append(dict())
-
-            sig = input_items[0][i*self.M:(i+1)*self.M]
-            (hard_sym, complex_sym) = self.demod.complex_demodulate(sig)
-            self.buffer[-1] = hard_sym[0]
-            self.complex_buffer[-1] = complex_sym[0]
-
-            #Conjugate demod and shift conjugate buffer, if needed
-            #AABBC or ABBCC
-            #   ^       ^
-            if ('sync_value' in self.buffer_meta[-2]) or ('sync_value' in self.buffer_meta[-3]):
-                self.conj_buffer = numpy.roll(self.conj_buffer, -1)
-                self.conj_complex_buffer = numpy.roll(self.conj_complex_buffer, -1)
-
-                (hard_sym, complex_sym) = self.demod_conj.complex_demodulate(sig)
-                self.conj_buffer[-1] = hard_sym[0]
-                self.conj_complex_buffer[-1] = complex_sym[0]
-
-            #Check for preamble
-            if(self.detect_preamble()):
-                print("Detect Preamble(Origin)")
-            # --------------------------- Checking End ---------------------------
 
         # send
         if(self.sending_mode):
             # output_items[0][:] = self.signal_buffer[-self.sending_size :]
             # output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
-            output_items[0][:] = self.sending_signal
+            output_items[0][:] = self.adjusted_phase
             # output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
             #output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
 
