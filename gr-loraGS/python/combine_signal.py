@@ -76,7 +76,6 @@ class combine_signal(gr.sync_block):
         self.work_count_in1 = 0
         self.input_in0 = False
         self.input_in1 = False
-        
 
     def draw_graph(self, graph, description, mag, bin2):
         plt.plot(graph)
@@ -122,7 +121,6 @@ class combine_signal(gr.sync_block):
         in0 = input_items[0]
         in1 = input_items[1]
         out = output_items[0]
-    
 
         if in0[0] != 0 or in1[0] != 0:
             # signal combine
@@ -185,7 +183,6 @@ class combine_signal(gr.sync_block):
 
                     max_combine_mag = numpy.max(combine_signal_fft_abs)
                     max_combine_bin = numpy.argmax(combine_signal_fft_abs)
-
 
                     snr_ratio_combined = combine_signal_fft_abs[512] / (numpy.mean(combine_signal_fft_abs[0:512])+numpy.mean(combine_signal_fft_abs[513:1024]))
                     snr_ratio_gt_1 = self.combine_in0_fft_abs[512] / (numpy.mean(self.combine_in0_fft_abs[0:512])+numpy.mean(self.combine_in0_fft_abs[513:1024]))

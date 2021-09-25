@@ -24,6 +24,8 @@ import numpy
 from gnuradio import gr
 from lora2 import css_demod_algo
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+import time
 
 from pymongo import MongoClient
 import datetime
@@ -42,6 +44,7 @@ class weak_lora_detect(gr.sync_block):
         self.M = int(2**sf)
         self.preamble_len = preamble_len
         self.thres = threshold
+        self.gatewayName = gatewayName
 
         # for charm
         self.max_chunk_count = 40
@@ -54,6 +57,7 @@ class weak_lora_detect(gr.sync_block):
         self.increase_count = 0
         self.decrease_count = 0
         self.enough_increase = False
+        self.index_signal = 0
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
@@ -267,6 +271,7 @@ class weak_lora_detect(gr.sync_block):
         # self.register_db = True
         #
 
+
     def work(self, input_items, output_items):
         self.work_count += 1
         signal_size = len(input_items[0])
@@ -331,8 +336,11 @@ class weak_lora_detect(gr.sync_block):
             # output_items[0][:] = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size]
             output_items[0][:] = self.adjusted_phase
             # output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
+            #output_items[0][0:self.M * self.preamble_len] = self.adjusted_signal[0:self.sending_size]
+
         else:
             # output_items[0][:] = numpy.random.normal(size=self.sending_size)
             output_items[0][:] = numpy.zeros(self.sending_size, dtype=numpy.complex64)
         self.sending_mode = False
+        self.index_signal += 1
         return len(output_items[0])
