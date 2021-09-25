@@ -170,6 +170,42 @@ class weak_lora_detect(gr.sync_block):
             li_angle_diff.append(angle_diff)
         print(li_angle_diff)
 
+    def angdiff(self, a, b):
+        d = a - b
+        d = numpy.mod(d + numpy.pi, 2*numpy.pi) - numpy.pi
+        return d
+    
+    def set_phase_offset(self):
+        symbol_mag = numpy.zeros(self.preamble_len, dtype=numpy.complex64)
+        symbol_bin = numpy.zeros(self.preamble_len, dtype=numpy.int)
+
+        phase_angle = numpy.zeros(self.preamble_len, dtype=numpy.float)
+        for i in range(8):
+            phase_fft = numpy.fft.fft(self.adjusted_signal[i*self.M : (i+1)*self.M] * self.dechirp)
+            phase_angle[i] = numpy.angle(phase_fft[0])
+            symbol_mag[i] = numpy.max(phase_fft)
+            symbol_bin[i] = numpy.argmax(phase_fft)
+        # phase_angle = numpy.angle(symbol_mag)
+        print("-----------FFT-----------")
+        print("bin : ", symbol_bin)
+        print("mag : ", symbol_mag)
+        print("----------Angle----------")
+        phase_diff = numpy.zeros(self.preamble_len - 1, dtype=numpy.float)
+        for i in range(self.preamble_len - 1):
+            phase_diff[i] = self.angdiff(phase_angle[i], phase_angle[i + 1])
+        phase_mean = numpy.mean(phase_diff[2:7])
+        print("phase_angle : ", phase_angle)
+        print("phase_diff", phase_diff)
+        print("phase_mean:", phase_mean)
+        print("----------CFO_fine-------------")
+        CFO_fine=(phase_mean*125000)/(1024*2*numpy.pi)
+        print("CFO_fine", CFO_fine)
+        # 
+        k = numpy.linspace(0.0, self.M - 1.0, self.M) / 125000
+        self.adjusted_signal2 = numpy.zeros(self.sending_size, dtype=numpy.complex64)
+        for i in range(8):
+            self.adjusted_signal2[i*self.M : (i+1)*self.M] = self.adjusted_signal[i*self.M : (i+1)*self.M] * numpy.exp(2j*numpy.pi*(-CFO_fine)*k) * numpy.exp(1j*(phase_mean)*i)
+
     def channel_estimation(self):
         k = numpy.linspace(0.0, self.M - 1.0, self.M)
         self.upchirp = numpy.exp(-1j*numpy.pi*k/self.M*k)
@@ -283,10 +319,11 @@ class weak_lora_detect(gr.sync_block):
                             self.signal_timing_index = self.M * (max_index - 8) + max_index_detail
                             self.sending_signal = self.signal_buffer[self.signal_timing_index: self.signal_timing_index + self.sending_size].copy()
                             self.set_frequencyOffset(self.signal_timing_index, self.max_bin_detail)
-                            self.sending_mode = True
-                            self.draw_plot_specto("signal-energe-bin-%d" %self.image_count, self.signal_timing_index)
+                            self.set_phase_offset()
+                            # self.draw_plot_specto("signal-energe-bin-%d" %self.image_count, self.signal_timing_index)
                             print("index:", self.signal_timing_index)
                             # self.save_signal_to_db()
+                            self.sending_mode = True
             else:
                 pass
 
