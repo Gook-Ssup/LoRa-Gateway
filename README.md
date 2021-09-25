@@ -2,11 +2,11 @@
 ![weak_lora_detect](./images/weak_lora_detect.png)
 
 - detect with energy
-- find broad max (at first)
-- and find detail max
+- set frequency offset
+- set phase offset
 
-![broad](./images/broad.png)
-![detail](./images/detail.png)
+![broad](./images/energe-signal-noise.png)
+![detail](./images/energe-signal.png)
 
 ## Install Python modules
 ```
