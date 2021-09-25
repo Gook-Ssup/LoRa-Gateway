@@ -1,10 +1,10 @@
-id: loraGS_lora_preamble_detect
-label: lora_preamble_detect
+id: loraGS_combine_signal
+label: combine_signal
 category: '[loraGS]'
 
 templates:
   imports: import loraGS
-  make: loraGS.lora_preamble_detect(${gatewayName}, ${sf}, ${threshold}, ${preamble_len})
+  make: loraGS.combine_signal(${sf}, ${preamble_length})
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -12,17 +12,10 @@ templates:
 #     * label (label shown in the GUI)
 #     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 parameters:
-- id: gatewayName
-  label: Gateway Name
-  dtype: string
 - id: sf
-  label: Spreading Factor
+  label: sf
   dtype: int
-- id: threshold
-  label: Threshold
-  dtype: float
-  default: 1e-4
-- id: preamble_len
+- id: preamble_length
   label: Preamble length
   dtype: int
 
@@ -34,7 +27,10 @@ parameters:
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
 inputs:
-- label: in
+- label: in0
+  domain: stream
+  dtype: complex
+- label: in1
   domain: stream
   dtype: complex
 
