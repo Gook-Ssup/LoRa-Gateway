@@ -143,33 +143,43 @@ class weak_lora_detect(gr.sync_block):
             self.signal_adjusted_frequency[i*self.M : (i+1)*self.M] * \
             numpy.exp(2j*numpy.pi*(-CFO_fine)*k) * numpy.exp(1j*(phase_mean)*i)
 
+
     def draw_specgram(self, graph, description):
-        plt.specgram(graph, Fs=125000)
-        plt.savefig(description)
-        plt.clf()
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1)
+        ax.specgram(graph, Fs=1)
+        fig.savefig(description)
+        fig.clf()
+
 
     def draw_energe_signal(self, description, index):
-        plt.subplot(3,1,1)
-        plt.title("%s" %index)
-        plt.grid(True)
-        plt.plot(self.energe_buffer)
-        plt.subplot(3,1,2)
-        plt.specgram(self.signal_buffer, Fs=1)
-        plt.subplot(3,1,3)
-        plt.specgram(self.signal_preamble, Fs=1)
-        plt.savefig(description)
-        plt.clf()
+        fig = plt.figure()
+        ax = fig.add_subplot(3,1,1)
+        ax.set_title("%s" %index)
+        ax.grid(True)
+        ax.plot(self.energe_buffer)
+
+        ax = fig.add_subplot(3,1,2)
+        ax.grid(True)
+        ax.specgram(self.signal_buffer, Fs=1)
+
+        ax = fig.add_subplot(3,1,3)
+        ax.grid(True)
+        ax.specgram(self.signal_preamble, Fs=1)
+        fig.savefig(description)
+        fig.clf()
 
     def draw_adjusted(self, description):
-        plt.subplot(3,1,1)
-        plt.specgram(self.signal_preamble, Fs=1)
-        plt.subplot(3,1,2)
-        plt.specgram(self.signal_adjusted_frequency, Fs=1)
-        plt.subplot(3,1,3)
-        plt.specgram(self.signal_adjusted_phase, Fs=1)
-        plt.savefig(description)
-        plt.clf()
+        fig = plt.figure()
 
+        ax = fig.add_subplot(2,1,1)
+        ax.specgram(self.signal_preamble, Fs=1)
+
+        ax = fig.add_subplot(2,1,2)
+        ax.specgram(self.signal_adjusted_frequency, Fs=1)
+
+        fig.savefig(description)
+        fig.clf()
 
     def save_signal_to_db(self):
         signal = {
@@ -241,8 +251,8 @@ class weak_lora_detect(gr.sync_block):
                 self.set_phase_offset()
 
                 # self.save_signal_to_db()
-                self.draw_specgram(self.signal_preamble, "signal_preamble-%s-%d" %(self.gatewayName, self.work_count))
-                self.draw_energe_signal("energe-signal-%s-%d" %(self.gatewayName, self.work_count), signal_timing_index)
+                self.draw_specgram(self.signal_preamble, "signal_preamble(%s)-%d" %(self.gatewayName, self.work_count))
+                # self.draw_energe_signal("energe-signal-%s-%d" %(self.gatewayName, self.work_count), signal_timing_index)
                 self.draw_adjusted("signal_adjusted-%s-%d" %(self.gatewayName, self.work_count))
                 self.sending_mode = True
             ## check

@@ -46,10 +46,9 @@ class combine_signal(gr.sync_block):
         self.combine_size = self.M * 8
         self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
         self.result_h = numpy.zeros(self.combine_size, dtype=numpy.complex64)
-        self.channel_value = numpy.zeros(2, dtype=numpy.complex64)
-
-        # self.signal0 = numpy.zeros(self.combine_size, dtype=numpy.complex64)
-        # self signal1 = numpy.zeros(self.combine_size, dtype=numpy.complex64)
+        # self.channel_value = numpy.zeros(2, dtype=numpy.complex64)
+        self.conj_channel0 = 0
+        self.conj_channel1 = 0
 
         # dechirp
         k = numpy.linspace(0.0, self.M-1.0, self.M)
@@ -60,15 +59,9 @@ class combine_signal(gr.sync_block):
         self.dechirp = numpy.conj(self.upchirp)
         self.dechirp_8 = numpy.tile(self.dechirp, 8)
 
-        # draw
-        self.image_count = 1
-        self.image_count2 = 1
-        self.image_count3 = 1
 
-        self.set_output_multiple(self.sending_size)
-
-        self.combine_in0_fft_abs = numpy.zeros(1024, dtype=numpy.float)
-        self.combine_in1_fft_abs = numpy.zeros(1024, dtype=numpy.float)
+        self.fft_abs_in0 = numpy.zeros(1024, dtype=numpy.float)
+        self.fft_abs_in1 = numpy.zeros(1024, dtype=numpy.float)
 
         # for timming
         self.work_count = 0
@@ -77,43 +70,49 @@ class combine_signal(gr.sync_block):
         self.input_in0 = False
         self.input_in1 = False
 
-    def draw_graph(self, graph, description, mag, bin2):
-        plt.plot(graph)
-        plt.savefig(description)
-        plt.clf()
+        self.set_output_multiple(self.sending_size)
 
-    def draw_specgram(self, graph, description):
-        plt.specgram(graph, Fs=125000)
-        plt.savefig(description)
-        plt.clf()
-
-    def channel_estimation(self,signal):
-        # self.upchirp = numpy.conj(self.dechirp)
-        # self.upchirp_8 = numpy.tile(self.upchirp, self.preamble_len)
+    def get_channel_mean(self,signal):
         channel_est = numpy.zeros(self.M * self.preamble_len, dtype=numpy.complex64)
         for i in range(8):
             channel_est[i*self.M : (i+1)*self.M] = signal[i*self.M : (i+1)*self.M] / self.upchirp
-        return channel_est
+        return numpy.mean(channel_est)
 
-    def draw_subplot(self, graph, num_mag, num_bin, gatewayNum):
+
+    def draw_specgram(self, graph, description):
         fig = plt.figure()
-        ax = fig.add_subplot(2,1,1)
-        if gatewayNum == 1:
-            # ax = fig.add_subplot(2,1,1)
-            ax.plot(graph,'r-',lw=1)
-            
-            description = 'input0-%d.png' %(self.image_count)
-        elif gatewayNum == 2:
-            # ax = fig.add_subplot(2,1,2)
-            ax.plot(graph,'g-',lw=1)
-            description = 'input1-%d.png' %(self.image_count2)
-        else:
-            ax.plot(graph,'b-',lw=1)
-            description = 'combine-%d.png' %(self.image_count3)
-            self.image_count3 += 1
-        ax.set_title("index: %d   mag: %.2f   bin: %d" %(self.work_count,num_mag, num_bin))
-        fig.tight_layout()
+        ax = fig.add_subplot(1,1,1)
+        ax.specgram(graph, Fs=1)
         fig.savefig(description)
+        fig.clf()
+
+    def draw_result(self):
+        description = "combine-result-%d" %self.work_count
+        # plt.title(description)
+        fig = plt.figure()
+        ax = fig.add_subplot(1,3,1)
+        ax.grid(True)
+        ax.plot(self.fft_abs_in0)
+
+        ax = fig.add_subplot(1,3,2)
+        ax.grid(True)
+        ax.plot(self.fft_abs_in1)
+
+        ax = fig.add_subplot(1,3,3)
+        ax.grid(True)
+        ax.plot(self.fft_abs_combine_signal)
+        fig.savefig(description)
+        fig.clf()
+
+    def estimate_result(self):
+        snr_ratio_combined = self.fft_abs_combine_signal[512] / (numpy.mean(self.fft_abs_combine_signal[0:512])+numpy.mean(self.fft_abs_combine_signal[513:1024]))
+        snr_ratio_in0 = self.fft_abs_in0[512] / (numpy.mean(self.fft_abs_in0[0:512])+numpy.mean(self.fft_abs_in0[513:1024]))
+        snr_ratio_in1 = self.fft_abs_in1[512] / (numpy.mean(self.fft_abs_in1[0:512])+numpy.mean(self.fft_abs_in1[513:1024]))
+
+        print("SNR Ratio Combined : ", snr_ratio_combined)
+        print("SNR Ratio in0 : ", snr_ratio_in0)
+        print("SNR Ratio in1 : ", snr_ratio_in1)
+        # self.draw_result()
     
     def work(self, input_items, output_items):
         self.work_count += 1
@@ -123,82 +122,52 @@ class combine_signal(gr.sync_block):
         out = output_items[0]
 
         if in0[0] != 0 or in1[0] != 0:
-            # signal combine
+            # check signal in0
             if in0[0] != 0:
-                # channel multiple signal
-                channel_est = numpy.mean(self.channel_estimation(in0))
-                conj_h = numpy.conj(channel_est)
-                self.channel_value[0] = conj_h
-                self.result_h = conj_h * in0
-                self.combine_signal += self.result_h
-
-                # Find in0 signal FFT & abs
-                in0_signal = in0[:1024] * self.dechirp
-                combine_in0_fft = numpy.fft.fftshift(numpy.fft.fft(in0_signal))
-                # combine_in0_fft = numpy.fft.fft(in0_signal)
-                self.combine_in0_fft_abs = numpy.abs(combine_in0_fft)
-                in0_mag = numpy.max(self.combine_in0_fft_abs)
-                in0_bin = numpy.argmax(self.combine_in0_fft_abs)
-                # self.draw_subplot(self.combine_in0_fft_abs,in0_mag,in0_bin,1)
-                # numpy.savetxt('/home/gnuradio-inc/Yun/text/in0_signal-%d.txt'%(self.image_count), in0_signal.view(float).reshape(-1,2))
-                # numpy.savetxt('/home/gnuradio-inc/Yun/text/in0_signal-%d.txt'%(self.image_count), in0_signal, fmt='%.18e%+.18ej')
-                self.image_count += 1
+                channel_mean = self.get_channel_mean(in0)
+                self.conj_channel0 = numpy.conj(channel_mean)
+                self.combine_signal += (self.conj_channel0 * in0)
+                # for estimation
+                in0_dechirped = in0[:1024] * self.dechirp
+                dechirped_fft_in0 = numpy.fft.fftshift(numpy.fft.fft(in0_dechirped))
+                self.fft_abs_in0 = numpy.abs(dechirped_fft_in0)
+                # for sync
                 self.work_count_in0 = self.work_count
                 self.input_in0 = True
-                
+            
+            # check signal in1
             if in1[0] != 0:
-                # channel multiple signal
-                channel_est = numpy.mean(self.channel_estimation(in1))
-                conj_h = numpy.conj(channel_est)
-                self.channel_value[1] = conj_h
-                self.result_h = conj_h * in1
-                self.combine_signal += self.result_h
-                
-                # Find in1 signal FFT & abs
-                in1_signal = in1[:1024] * self.dechirp
-                combine_in1_fft = numpy.fft.fftshift(numpy.fft.fft(in1_signal))
-                # combine_in1_fft = numpy.fft.fft(in1_signal)
-                self.combine_in1_fft_abs = numpy.abs(combine_in1_fft)
-                in1_mag = numpy.max(self.combine_in1_fft_abs)
-                in1_bin = numpy.argmax(self.combine_in1_fft_abs)
-                
-                # self.draw_subplot(self.combine_in1_fft_abs,in1_mag,in1_bin,2)
-                # self.draw_subplot(combine_in1_fft,in1_mag,in1_bin,2)
-                self.image_count2 += 1
+                channel_mean = self.get_channel_mean(in1)
+                self.conj_channel1 = numpy.conj(channel_mean)
+                self.combine_signal += (self.conj_channel1 * in1)
+                # for estimation
+                in1_dechirped = in1[:1024] * self.dechirp
+                dechirped_fft_in1 = numpy.fft.fftshift(numpy.fft.fft(in1_dechirped))
+                self.fft_abs_in1 = numpy.abs(dechirped_fft_in1)
+                # for sync
                 self.work_count_in1 = self.work_count
                 self.input_in1 = True
-                
-            # if self.count == 2:
             
             if self.input_in0 == True and self.input_in1 == True:
                 if numpy.abs(self.work_count_in0 - self.work_count_in1) < 10:
                     print("work_count_in0 : ", self.work_count_in0)
                     print("work_count_in1 : ", self.work_count_in1)
-                    # self.combine_signal += self.result_h
-                    normalization_factor = math.sqrt(numpy.abs(self.channel_value[0])**2 + numpy.abs(self.channel_value[1])**2)
+                    # nomalization
+                    normalization_factor = math.sqrt(numpy.abs(self.conj_channel0)**2 + numpy.abs(self.conj_channel1)**2)
+                    self.combine_signal = self.combine_signal / normalization_factor
+
+                    # for estimation
                     dechirped_combine_signal = (self.combine_signal[:1024]/normalization_factor) * self.dechirp
-                    self.draw_specgram(self.combine_signal/normalization_factor, "combine-%d" %self.work_count)
-                    combine_signal_fft = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
-                    combine_signal_fft_abs = numpy.abs(combine_signal_fft)
+                    fft_combine_signal = numpy.fft.fftshift(numpy.fft.fft(dechirped_combine_signal))
+                    self.fft_abs_combine_signal = numpy.abs(fft_combine_signal)
+                    self.estimate_result()
 
-                    max_combine_mag = numpy.max(combine_signal_fft_abs)
-                    max_combine_bin = numpy.argmax(combine_signal_fft_abs)
+                    self.draw_specgram(self.combine_signal, "combine_signal-%d" %self.work_count)
+                    self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64) # reset
 
-                    snr_ratio_combined = combine_signal_fft_abs[512] / (numpy.mean(combine_signal_fft_abs[0:512])+numpy.mean(combine_signal_fft_abs[513:1024]))
-                    snr_ratio_gt_1 = self.combine_in0_fft_abs[512] / (numpy.mean(self.combine_in0_fft_abs[0:512])+numpy.mean(self.combine_in0_fft_abs[513:1024]))
-                    snr_ratio_gt_2 = self.combine_in1_fft_abs[512] / (numpy.mean(self.combine_in1_fft_abs[0:512])+numpy.mean(self.combine_in1_fft_abs[513:1024]))
-
-                    print("snr_ratio_combined : ", snr_ratio_combined)
-                    print("snr_ratio_gt_1 : ", snr_ratio_gt_1)
-                    print("snr_ratio_gt_2 : ", snr_ratio_gt_2)
-                    # self.draw_subplot(combine_signal_fft_abs,max_combine_mag,max_combine_bin,3)
-                    self.combine_signal = numpy.zeros(self.combine_size, dtype=numpy.complex64)
-
-                    self.combine_in0_fft_abs = numpy.zeros(1024, dtype=numpy.float)
-                    self.combine_in1_fft_abs = numpy.zeros(1024, dtype=numpy.float)
-                else:
-                    self.combine_in0_fft_abs = numpy.zeros(1024, dtype=numpy.float)
-                    self.combine_in1_fft_abs = numpy.zeros(1024, dtype=numpy.float)
+                # reset
+                self.fft_abs_in0 = numpy.zeros(1024, dtype=numpy.float)
+                self.fft_abs_in1 = numpy.zeros(1024, dtype=numpy.float)
                 self.input_in0 = False
                 self.input_in1 = False
         
