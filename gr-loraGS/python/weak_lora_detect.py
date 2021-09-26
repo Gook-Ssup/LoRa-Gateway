@@ -47,7 +47,7 @@ class weak_lora_detect(gr.sync_block):
 
         # for charm
         self.max_chunk_count = 40
-        self.check_index = 30
+        self.check_index = 25
         self.signal_buffer = numpy.zeros(self.M * self.max_chunk_count, dtype=numpy.complex64)
         self.signal_index = 0
         self.energe_buffer = numpy.zeros(self.max_chunk_count, dtype=numpy.float) - 1
@@ -92,6 +92,7 @@ class weak_lora_detect(gr.sync_block):
     def find_maximum_detail(self, k):
         self.energe_buffer_detail = numpy.zeros(3 * self.M, dtype=numpy.float) - 1
         self.bin_buffer_detail = numpy.zeros(3 * self.M, dtype=numpy.int) - 1
+        is_error = False
         for i in range(3 * self.M):
             try:
                 dechirped_signals = self.signal_buffer[self.M * (k - 8) + i: self.M * k + i]*self.dechirp_8
@@ -99,7 +100,9 @@ class weak_lora_detect(gr.sync_block):
                 self.energe_buffer_detail[i] = numpy.max(numpy.abs(dechirped_signals_fft))
                 self.bin_buffer_detail[i] = numpy.argmax(numpy.abs(dechirped_signals_fft))
             except:
-                print(self.M * (k - 1) + i - self.M *8, self.M * (k - 1) + i)
+                is_error = True
+        if(is_error):
+            print("Error: ", k)
         max_index_detail = numpy.argmax(numpy.abs(self.energe_buffer_detail))
         return max_index_detail, self.bin_buffer_detail[max_index_detail]
 
@@ -195,18 +198,18 @@ class weak_lora_detect(gr.sync_block):
         signal_id = self.signals.insert_one(signal).inserted_id
         print("Save(%s): %s" %(self.gatewayName, signal_id))
 
-    def detect_lora_signal(self):
-        if(self.energe_buffer[self.check_index - 1] > self.energe_buffer[self.check_index - 2]):
+    def detect_lora_signal(self, check_index):
+        if(self.energe_buffer[check_index - 1] > self.energe_buffer[check_index - 2]):
             self.decrease_count = 0
             self.increase_count += 1
-            self.max_mag = self.energe_buffer[self.check_index - 1]
-            if(self.increase_count >= 2):
+            self.max_mag = self.energe_buffer[check_index - 1]
+            if(self.increase_count >= 3):
                 self.enough_increase = True
-        elif(self.energe_buffer[self.check_index - 1] < self.energe_buffer[self.check_index - 2]):
+        elif(self.energe_buffer[check_index - 1] < self.energe_buffer[check_index - 2]):
             self.increase_count = 0
             self.decrease_count += 1
             if(self.enough_increase):
-                if(self.decrease_count >= 2):
+                if(self.decrease_count >= 3):
                     self.enough_increase = False
                     if(self.max_mag > self.energe_buffer[0] * 2):
                         return True
@@ -220,11 +223,10 @@ class weak_lora_detect(gr.sync_block):
         self.signal_buffer[-signal_size:] = input_items[0]
         
         ## signal_size check
-        if(self.signal_index < self.M * (self.preamble_len+2)):
-            self.signal_index += signal_size
-            return len(output_items[0])
-        # else
         n_syms = signal_size//self.M
+        
+        if(self.work_count * n_syms < self.max_chunk_count):
+            return len(output_items[0])
  
         for i in range(0, n_syms):
             ## save energe buffer
@@ -238,8 +240,8 @@ class weak_lora_detect(gr.sync_block):
         
         # detect
         for i in range(0, n_syms):
-            if(self.detect_lora_signal()):
-                print("detect lora preamble (%s):%d" %(self.gatewayName, self.work_count))
+            if(self.detect_lora_signal(self.check_index + i)):
+                print("detect lora preamble %d(%s):%d" %(i, self.gatewayName, self.work_count))
                 self.detect_count += 1
                 max_index, energe = self.find_maximum()
                 max_index_detail, max_bin_detail = self.find_maximum_detail(max_index)
@@ -251,9 +253,9 @@ class weak_lora_detect(gr.sync_block):
                 self.set_phase_offset()
 
                 # self.save_signal_to_db()
-                self.draw_specgram(self.signal_preamble, "signal_preamble(%s)-%d" %(self.gatewayName, self.work_count))
-                # self.draw_energe_signal("energe-signal-%s-%d" %(self.gatewayName, self.work_count), signal_timing_index)
-                self.draw_adjusted("signal_adjusted-%s-%d" %(self.gatewayName, self.work_count))
+                # self.draw_specgram(self.signal_preamble, "signal_preamble(%s)-%d" %(self.gatewayName, self.work_count))
+                self.draw_energe_signal("energe-signal-%s-%d" %(self.gatewayName, self.work_count), signal_timing_index)
+                # self.draw_adjusted("signal_adjusted-%s-%d" %(self.gatewayName, self.work_count))
                 self.sending_mode = True
             ## check
 
