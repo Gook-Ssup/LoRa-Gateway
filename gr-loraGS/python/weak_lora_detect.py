@@ -243,7 +243,9 @@ class weak_lora_detect(gr.sync_block):
             if(self.detect_lora_signal(self.check_index + i)):
                 print("detect lora preamble %d(%s):%d" %(i, self.gatewayName, self.work_count))
                 self.detect_count += 1
-                max_index, energe = self.find_maximum()
+                # max_index, energe = self.find_maximum()
+                max_index = numpy.argmax(self.energe_buffer)
+
                 max_index_detail, max_bin_detail = self.find_maximum_detail(max_index)
                 self.max_bin_detail = max_bin_detail
                 signal_timing_index = self.M * (max_index - 8) + max_index_detail
