@@ -63,7 +63,10 @@ class lora_preamble_detect(gr.sync_block):
             self.buffer_meta = [dict() for i in range(0, 5)]
 
         self.set_output_multiple(self.sending_size)
+
+        self.verify_signal = numpy.zeros(self.sending_size, dtype=numpy.complex64)        
         self.work_count = 0
+        self.detected_work_count = 0
 
     def detect_preamble(self):
         #Buffer not full yet
@@ -86,7 +89,10 @@ class lora_preamble_detect(gr.sync_block):
     def work(self, input_items, output_items):
         self.work_count += 1
 
+        # verify signal
         in0 = input_items[0]
+        if((in0 == self.verify_signal).min()):
+            return len(output_items[0])
 
         n_syms = len(in0)//self.M
 
@@ -118,8 +124,10 @@ class lora_preamble_detect(gr.sync_block):
             self.signal_buffer=numpy.roll(self.signal_buffer, -input_len)
             self.signal_buffer[-input_len:] = in0
             if(self.detect_preamble()):
-                print("Detect Preamble(%s):%d" %(self.gatewayName, self.work_count))
-                self.sending_mode = True
+                if(self.detected_work_count != self.work_count):
+                    print("Detect Preamble(%s):%d" %(self.gatewayName, self.work_count))
+                    self.sending_mode = True
+                    self.detected_work_count = self.work_count
 
             if(self.sending_mode):
                 output_items[0][:] = self.signal_buffer[:]
